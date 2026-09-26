@@ -10,20 +10,27 @@
 
 ## Стек
 
-- Разное
+- Python 3.11+, FastAPI, SQLite, Docker
 
 ## Установка
-
-<!-- Опишите установку: клонирование, зависимости, переменные окружения -->
 
 ```bash
 git clone https://github.com/Pir-4/ai-for-developers-project-386.git
 cd ai-for-developers-project-386
+make setup   # создаёт .venv и ставит зависимости (нужен uv)
 ```
 
 ## Использование
 
-<!-- Добавьте примеры запуска и запись asciinema — именно это смотрит работодатель -->
+```bash
+make run     # dev-сервер: http://localhost:8000 (Swagger UI — /docs)
+make test    # тесты
+make lint    # линт
+
+make docker-build && make docker-run   # сборка и запуск в контейнере
+```
+
+Контракт API — в [docs/api.md](docs/api.md).
 
 ---
 
