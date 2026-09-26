@@ -1,17 +1,16 @@
 .PHONY: setup run test lint docker-build docker-run
 
 setup:
-	uv sync
+	npm ci
 
 run:
-	.venv/bin/uvicorn app.main:app --reload --port 8000
+	npm run dev
 
 test:
-	.venv/bin/pytest
+	npm test
 
 lint:
-	.venv/bin/ruff check .
-	.venv/bin/ruff format --check .
+	npm run lint
 
 docker-build:
 	docker build -t call-booking .
