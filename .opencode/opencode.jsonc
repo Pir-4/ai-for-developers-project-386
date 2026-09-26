@@ -1,0 +1,50 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+
+  // MCP servers. Playwright is used for UI tests and debugging.
+  "mcp": {
+    "servers": {
+      "playwright": {
+        "type": "local",
+        "command": ["npx", "-y", "@playwright/mcp@latest"],
+      },
+    },
+  },
+
+  // Permissions: ordered rules, the LAST matching rule wins.
+  // Specific exceptions go after broad rules.
+  "permissions": [
+    // Routine read-only / dev commands run without prompting.
+    { "action": "shell", "resource": "make *", "effect": "allow" },
+    { "action": "shell", "resource": "npm *", "effect": "allow" },
+    { "action": "shell", "resource": "npx *", "effect": "allow" },
+    { "action": "shell", "resource": "node *", "effect": "allow" },
+    { "action": "shell", "resource": "ls *", "effect": "allow" },
+    { "action": "shell", "resource": "cat *", "effect": "allow" },
+    { "action": "shell", "resource": "git status *", "effect": "allow" },
+    { "action": "shell", "resource": "git diff *", "effect": "allow" },
+    { "action": "shell", "resource": "git log *", "effect": "allow" },
+    { "action": "shell", "resource": "git show *", "effect": "allow" },
+
+    // Package manager installs require confirmation.
+    { "action": "shell", "resource": "brew *", "effect": "ask" },
+
+    // Git mutations require confirmation (see AGENTS.md workflow).
+    { "action": "shell", "resource": "git commit *", "effect": "ask" },
+    { "action": "shell", "resource": "git push *", "effect": "ask" },
+    { "action": "shell", "resource": "git rebase *", "effect": "ask" },
+    { "action": "shell", "resource": "git reset *", "effect": "ask" },
+    { "action": "shell", "resource": "git checkout *", "effect": "ask" },
+    { "action": "shell", "resource": "rm *", "effect": "ask" },
+
+    // Always blocked.
+    { "action": "shell", "resource": "sudo *", "effect": "deny" },
+    { "action": "shell", "resource": "git push --force *", "effect": "deny" },
+    { "action": "shell", "resource": "git push -f *", "effect": "deny" },
+
+    // Do not touch secrets and the Hexlet check workflow (see AGENTS.md).
+    { "action": "read", "resource": "*.env", "effect": "deny" },
+    { "action": "read", "resource": "*.env.*", "effect": "deny" },
+    { "action": "edit", "resource": ".github/workflows/hexlet-check.yml", "effect": "deny" },
+  ],
+}
