@@ -1,32 +1,32 @@
-# Контракт API — «Запись на звонок»
+# API Contract — "Call Booking"
 
-Это источник истины для клиента и сервера. Любое изменение поведения API
-сначала фиксируется здесь, потом реализуется в коде.
+This is the source of truth for the client and the server. Any change to API behavior
+is recorded here first, then implemented in the code.
 
-## Общие правила
+## General rules
 
-- Все даты и время — UTC в формате ISO 8601 (`2026-09-26T10:00:00Z`).
-- Слот — ровно 30 минут; `start` выровнен на `:00` или `:30`.
-- Авторизации нет: эндпоинты владельца и гостя публичны.
-- Ошибки валидации — 422 (стандарт FastAPI), бизнес-ошибки — JSON `{"detail": "..."}`.
+- All dates and times — UTC in ISO 8601 format (`2026-09-26T10:00:00Z`).
+- A slot is exactly 30 minutes; `start` is aligned to `:00` or `:30`.
+- No authentication: owner and guest endpoints are public.
+- Validation errors — 422, business errors — JSON `{"detail": "..."}`.
 
-## Слоты
+## Slots
 
-### `POST /api/slots` — опубликовать слот (владелец)
+### `POST /api/slots` — publish a slot (owner)
 
-Запрос:
+Request:
 
 ```json
 { "start": "2026-09-27T10:00:00Z" }
 ```
 
-- 201 → `{ "id": 1, "start": "...", "end": "...30 мин спустя...", "available": true }`
-- 409 — слот с таким `start` уже существует
-- 422 — `start` не выровнен на 30 минут
+- 201 → `{ "id": 1, "start": "...", "end": "...30 minutes later...", "available": true }`
+- 409 — a slot with this `start` already exists
+- 422 — `start` is not aligned to 30 minutes
 
-### `GET /api/slots?date=YYYY-MM-DD` — список слотов за дату (гость)
+### `GET /api/slots?date=YYYY-MM-DD` — list slots for a date (guest)
 
-`date` необязателен, по умолчанию — сегодня (UTC).
+`date` is optional, defaults to today (UTC).
 
 200 →
 
@@ -39,39 +39,39 @@
 }
 ```
 
-`available: false` — слот уже забронирован. Сортировка по `start` по возрастанию.
+`available: false` — the slot is already booked. Sorted by `start` ascending.
 
-## Бронирования
+## Bookings
 
-### `POST /api/bookings` — записаться на звонок (гость)
+### `POST /api/bookings` — book a call (guest)
 
-Запрос:
+Request:
 
 ```json
-{ "slot_id": 1, "name": "Иван", "comment": "поговорим о проекте" }
+{ "slot_id": 1, "name": "John", "comment": "let's talk about the project" }
 ```
 
-`comment` необязателен.
+`comment` is optional.
 
-- 201 → `{ "id": 1, "start": "...", "end": "...", "name": "Иван", "comment": "..." }`
-- 404 — слота с таким `slot_id` нет
-- 409 — слот уже забронирован
-- 422 — пустое `name`
+- 201 → `{ "id": 1, "start": "...", "end": "...", "name": "John", "comment": "..." }`
+- 404 — no slot with this `slot_id`
+- 409 — the slot is already booked
+- 422 — empty `name`
 
-### `GET /api/bookings` — предстоящие встречи (владелец)
+### `GET /api/bookings` — upcoming meetings (owner)
 
 200 →
 
 ```json
 {
   "bookings": [
-    { "id": 1, "start": "...", "end": "...", "name": "Иван", "comment": "..." }
+    { "id": 1, "start": "...", "end": "...", "name": "John", "comment": "..." }
   ]
 }
 ```
 
-Только будущие встречи (`start >= now`), сортировка по `start` по возрастанию.
+Only future meetings (`start >= now`), sorted by `start` ascending.
 
-## Служебное
+## Maintenance
 
 ### `GET /api/health` → 200 `{"status": "ok"}`

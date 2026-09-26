@@ -8,29 +8,30 @@
 Учебный проект Хекслета: https://ru.hexlet.io/programs/ai-for-developers
 Как это должно работать: https://files.hexlet.app/a/2ipc5m
 
-## Стек
+## Stack
 
-- Python 3.11+, FastAPI, SQLite, Docker
+- Node.js 22+, TypeScript, Fastify, SQLite, Docker
+- Frontend: Vite + React + Mantine
 
-## Установка
+## Setup
 
 ```bash
 git clone https://github.com/Pir-4/ai-for-developers-project-386.git
 cd ai-for-developers-project-386
-make setup   # создаёт .venv и ставит зависимости (нужен uv)
+make setup   # installs dependencies of all workspaces (requires Node.js 22+)
 ```
 
-## Использование
+## Usage
 
 ```bash
-make run     # dev-сервер: http://localhost:8000 (Swagger UI — /docs)
-make test    # тесты
-make lint    # линт
+make run     # dev: backend http://localhost:8000, frontend http://localhost:5173
+make test    # tests
+make lint    # lint
 
-make docker-build && make docker-run   # сборка и запуск в контейнере
+make docker-build && make docker-run   # build and run in a container (http://localhost:8000)
 ```
 
-Контракт API — в [docs/api.md](docs/api.md).
+The API contract lives in [docs/api.md](docs/api.md).
 
 ---
 

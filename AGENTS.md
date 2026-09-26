@@ -1,48 +1,57 @@
 # AGENTS.md
 
-## Проект
+## Project
 
-«Запись на звонок» — учебный проект Хекслета (программа ai-for-developers): упрощённый Cal.com.
-Владелец публикует 30-минутные слоты, гость бронирует слот, владелец смотрит список предстоящих встреч.
+"Call booking" — a Hexlet learning project (ai-for-developers program): a simplified Cal.com.
+The owner publishes 30-minute slots, a guest books a slot, the owner views the list of upcoming meetings.
 
-Осознанно **отсутствуют** (не добавлять): авторизация, личные кабинеты, интеграции с внешними календарями.
-Эталон поведения — видео из README: https://files.hexlet.app/a/2ipc5m
+Deliberately **out of scope** (do not add): authentication, personal accounts, external calendar integrations.
+Behavior reference — video in README: https://files.hexlet.app/a/2ipc5m
 
-## Формат работы
+## Workflow
 
-- Разработка по этапам, contract-first: контракт (`docs/api.md`) → фронтенд → бэкенд → тесты сценариев → деплой.
-  Не перепрыгивать этапы, если пользователь не просил явно.
-- `docs/api.md` — источник истины. Изменение поведения API = сначала правка контракта, потом кода.
-  Swagger `/docs` — автогенерация FastAPI, контракт из неё не восстанавливать.
-- Итоговый критерий готовности: образ собирается и работает (`make docker-build && make docker-run`).
-- Код пишет только агент; пользователь вручную код не редактирует.
+- Development in stages, contract-first: contract (`docs/api.md`) → frontend → backend → scenario tests → deploy.
+  Do not skip stages unless the user explicitly asks.
+- `docs/api.md` is the source of truth. Changing API behavior = edit the contract first, then the code.
+- Final readiness criterion: the image builds and runs (`make docker-build && make docker-run`).
+- Only the agent writes code; the user does not edit code by hand.
 
-## Стек и структура
+## Stack and structure
 
-- Python 3.11+, FastAPI + uvicorn, SQLite через stdlib `sqlite3` (без ORM).
-- Один процесс отдаёт и API (`/api/*`), и статику из `app/static/` — отдельного фронтенд-сервера нет.
-- Фронтенд — ванильный JS, без сборки, бандлеров и фреймворков (пользователь не фронтендер). Не добавлять node/npm.
-  - `app/static/js/api.js` — fetch-обёртки, зеркалят `docs/api.md`; вся конвертация локальное время ↔ UTC ISO живёт только здесь.
-  - `app/static/js/app.js` — рендер и обработчики; обращается к API только через `api.js`.
-- `app/main.py` — точка входа (роуты, lifespan); `app/db.py` — подключение и схема БД; `tests/` — pytest + TestClient.
-- Время — только UTC ISO 8601 строки; слот строго 30 минут, `start` выровнен на `:00`/`:30`.
-- БД — файл `data/app.db` (переопределяется `DATABASE_PATH`), создаётся автоматически при старте. `data/` в .gitignore.
+- Node.js 22+, TypeScript (strict, ESM/NodeNext), npm workspaces: `server/` and `web/`.
+- `server/` — Fastify 5. `src/app.ts` — `buildApp()` (routes, plugins), `src/index.ts` — startup on `PORT ?? 8000`.
+  Tests — Vitest via `app.inject()`, located in `server/test/`.
+- `web/` — Vite 6 + React 19 + Mantine 9. Dev proxy `/api` → :8000 (`vite.config.ts`).
+- Production: a single process (`npm start`) serves both the API (`/api/*`) and static files from `web/dist` — there is no separate frontend server.
+- Time — UTC ISO 8601 strings only; a slot is exactly 30 minutes, `start` aligned to `:00`/`:30`.
+- DB — SQLite, file `data/app.db`; arrives at the backend stage, not present in the code yet. `data/` is in .gitignore.
 
-## Команды
+## Commands
 
-- `make setup` — venv + зависимости (`uv sync`; без uv: `python3 -m venv .venv && .venv/bin/pip install -e . --group dev`, нужен pip ≥ 25.1)
-- `make run` — dev-сервер на :8000 с автоперезагрузкой
-- `make test` — все тесты; один тест: `.venv/bin/pytest tests/test_api.py::test_health`
-- `make lint` — ruff check + ruff format --check
-- `make docker-build` / `make docker-run` — образ `call-booking`, порт 8000
-- pytest/ruff вызывать только через `.venv/bin/...` — глобально зависимости не установлены
+- `make setup` — `npm ci` (requires Node ≥ 22; the local default `node` may be 20, then use Node 22
+  from nvm: `export PATH="$HOME/.nvm/versions/node/v22.11.0/bin:$PATH"`)
+- `make run` — dev: backend :8000 + frontend :5173 (concurrently)
+- `make test` — Vitest; a single test: `npm test -w server -- test/health.test.ts`
+- `make lint` — ESLint (flat config at the root, typescript-eslint)
+- `make docker-build` / `make docker-run` — image `call-booking`, port 8000
 
-## Нельзя трогать
+## Version pins (do not upgrade without a reason)
 
-- `.github/workflows/hexlet-check.yml` — автогенерированный файл проверок Хекслета (не удалять, не редактировать, не переименовывать; репозиторий тоже не переименовывать).
-- В README — бейдж hexlet-check и блок «Автоматические тесты Хекслета».
+- `vite@6`, `vitest@3`, `@fastify/static@9` are pinned for the local Node 22.11: vite 8 / vitest 4 require
+  Node ≥ 22.12 (native rolldown binary), `@fastify/static@10` needs `require(esm)` from Node ≥ 22.12.
+  If the local Node is upgraded to ≥ 22.12, the pins can be revisited. CI and Docker use fresh Node 22 — no issue there.
 
-## Соглашения
+## Do not touch
 
-- Документация, UI-тексты и ответы пользователю — на русском.
-- Зависимости — только через `uv add` / `uv remove` (dev: `uv add --group dev`). `uv.lock` коммитим — он нужен для воспроизводимой сборки Docker-образа.
+- `.github/workflows/hexlet-check.yml` — auto-generated Hexlet checks file (do not delete, edit, or rename; do not rename the repository either).
+- In README — the hexlet-check badge and the "Автоматические тесты Хекслета" section.
+
+## Conventions
+
+- Commits and PR titles — Conventional Commits only, messages in English: release-please builds the changelog
+  and version from them. Load the `conventional-commits` skill (`.opencode/skills/conventional-commits/`) before committing.
+- All documentation (AGENTS.md, README, `docs/`, skills) and commit messages — in English.
+  Conversation with the user and UI texts — in Russian.
+- Dependencies — via `npm install <pkg> -w server|-w web` (dev: `-D`); the root `package-lock.json`
+  is committed — needed for reproducible builds (`npm ci` in CI and Docker).
+- CI: `.github/workflows/ci.yml` runs lint + test + build on every push; `release-please.yml` maintains a release PR on `main`.
