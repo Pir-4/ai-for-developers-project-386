@@ -181,9 +181,13 @@ Functional test cases:
 
 Tooling acceptance:
 
-9. `web` gets devDependencies: `vitest@^3` (matches the server pin), `jsdom`,
+9. `web` gets devDependencies: `vitest@^3` (matches the server pin),
    `@testing-library/react`, `@testing-library/jest-dom`,
-   `@testing-library/user-event`. Scripts: `web` `"test": "vitest run"` +
+   `@testing-library/user-event`. `jsdom@^26` is a **root** devDependency:
+   vitest is hoisted to the workspace root and resolves `jsdom` from there,
+   and jsdom@27 is unusable on local Node 22.11 (its CSS stack `require()`s
+   an ESM-only package; `require(esm)` needs Node ≥ 22.12 — same pinning
+   rationale as AGENTS.md "Version pins"). Scripts: `web` `"test": "vitest run"` +
    `"test:watch": "vitest"`; root `npm test` runs both workspaces; `make test`
    keeps working unchanged.
 10. Vitest config for `web`: `environment: 'jsdom'`; setup file polyfills
@@ -203,6 +207,10 @@ dominant block per § 3.2; layout stacks without horizontal scroll at 375px.
   on `feat/landing-page` test-first.
 - 2026-10-03 — Design: default Mantine theme, no bespoke visuals (user-approved).
 - 2026-10-03 — CTA is an anchor placeholder to `#cta` (user-approved).
+- 2026-10-03 — Design reference screenshots appeared in `docs/reference/`
+  after this spec merged (user instruction: "follow the spec; we'll decide
+  later whether to align with the reference"). The spec stays authoritative;
+  reference alignment is a separate future decision, not this stage.
 
 ## 10. Open questions
 

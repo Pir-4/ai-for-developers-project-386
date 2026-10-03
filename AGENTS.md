@@ -41,6 +41,8 @@ Behavior reference — video in README: https://files.hexlet.app/a/2ipc5m
 - `vite@6`, `vitest@3`, `@fastify/static@9` are pinned for the local Node 22.11: vite 8 / vitest 4 require
   Node ≥ 22.12 (native rolldown binary), `@fastify/static@10` needs `require(esm)` from Node ≥ 22.12.
   If the local Node is upgraded to ≥ 22.12, the pins can be revisited. CI and Docker use fresh Node 22 — no issue there.
+- `jsdom@26` (devDep for web tests, pinned via root `overrides`): jsdom 27's CSS stack `require()`s
+  an ESM-only package, which also needs `require(esm)` from Node ≥ 22.12.
 
 ## Do not touch
 
