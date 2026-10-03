@@ -1,35 +1,22 @@
-import {
-  AppShell,
-  Container,
-  Group,
-  Stack,
-  Text,
-  Title,
-} from '@mantine/core'
-import { BackendStatus } from './components/BackendStatus.tsx'
+import { AppShell } from '@mantine/core'
+import { AudiencesSection } from './components/AudiencesSection.tsx'
+import { CtaSection } from './components/CtaSection.tsx'
+import { HeroSection } from './components/HeroSection.tsx'
+import { HowItWorksSection } from './components/HowItWorksSection.tsx'
+import { SiteFooter } from './components/SiteFooter.tsx'
+import { SiteHeader } from './components/SiteHeader.tsx'
 
 function App() {
   return (
     <AppShell header={{ height: 60 }} padding="md">
-      <AppShell.Header>
-        <Group h="100%" px="md">
-          <Title order={3}>Запись на звонок</Title>
-        </Group>
-      </AppShell.Header>
-
+      <SiteHeader />
       <AppShell.Main>
-        <Container size="sm" py="xl">
-          <Stack gap="md">
-            <Title order={1}>Запись на звонок</Title>
-            <Text c="dimmed">
-              Здесь появится сервис бронирования 30-минутных слотов: владелец
-              опубликует доступное время, а гость сможет выбрать подходящий слот
-              и записаться на звонок.
-            </Text>
-            <BackendStatus />
-          </Stack>
-        </Container>
+        <HeroSection />
+        <HowItWorksSection />
+        <AudiencesSection />
+        <CtaSection />
       </AppShell.Main>
+      <SiteFooter />
     </AppShell>
   )
 }
