@@ -26,6 +26,8 @@ Behavior reference — video in README: https://files.hexlet.app/a/2ipc5m
 - Time — UTC ISO 8601 strings only; a slot is exactly 30 minutes, `start` aligned to `:00`/`:30`.
 - DB — SQLite, file `data/app.db`; arrives at the backend stage, not present in the code yet. `data/` is in .gitignore.
 - `docs/reference/` — local design reference screenshots (e.g. for the landing page). Gitignored; never commit its contents.
+- `docs/ui-style.md` — the approved visual contract (from the landing page) that every new page follows.
+- `docs/specs/` — feature specifications (SDD: the spec is written and merged before implementation).
 
 ## Commands
 

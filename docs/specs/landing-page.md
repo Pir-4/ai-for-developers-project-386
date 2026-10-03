@@ -3,7 +3,7 @@
 - **Stage**: feature 1 — landing page of the service.
 - **Branch / PR**: `spec/landing-page` (this document). Implementation lands in
   `feat/landing-page` only after this spec is approved and merged.
-- **Status**: draft → ready for review.
+- **Status**: v2 — user review feedback applied 2026-10-03 (§ 9).
 
 ## 1. Goal
 
@@ -23,19 +23,23 @@ In scope:
 - a static page assembled from named components;
 - test tooling for the `web` workspace (vitest + jsdom + Testing Library) —
   the project has no frontend tests today;
-- header and footer navigation via in-page anchors.
+- header and footer navigation via in-page anchors;
+- UI language switcher RU/EN (§ 6.1) — interface copy only.
 
 Out of scope (later stages):
 
 - the booking page itself (the "Create meeting" CTA is a placeholder, § 4.1);
-- router, backend data, i18n, custom theme, analytics, burger menu;
+- router, backend data, custom theme, analytics, burger menu;
+- translating server-side data (slot times, user names) — the booking domain
+  stays single-locale;
 - SEO metadata beyond the existing `<title>`.
 
 ## 3. Page structure
 
-Order of blocks, top to bottom. UI texts below are canonical: implementation
+Order of blocks, top to bottom. UI texts below are canonical for the default
+locale (RU); the English locale mirrors this structure (§ 6.1). Implementation
 must render exactly these strings (stored once in `web/src/content/landing.ts`,
-§ 8 item 8). Russian copy is intentional per project conventions.
+§ 8 item 8).
 
 ### 3.1 Header — `SiteHeader`
 
@@ -45,14 +49,18 @@ Sticky single line: logo left, nav center/right, primary button right.
 |------------------------|-----------------|
 | Logo (link to `/`)     | `Запись на звонок` |
 | Nav link 1             | `Как это работает` → `#how` |
-| Nav link 2             | `Для владельцев` → `#audiences` |
+| Nav link 2             | `Для кого` → `#audiences` (leads to the three-audience section) |
+| Language switcher      | `RU` / `EN` — toggles all UI copy (§ 6.1) |
 | Primary button         | `Создать встречу` → § 4.1 |
 
 ### 3.2 Hero — `HeroSection`
 
-- H1: `Запись на звонок за 30 секунд`
-- Subheading: `Вы публикуете свободные 30-минутные слоты — гость выбирает
-  удобное время сам. Никакой переписки «а вам удобно в 15:00 или в 15:30?».`
+- H1: `Запись на звонок за 30 секунд` («30 seconds» = booking speed, not slot
+  length)
+- Subheading: `Вы публикуете свободные слоты — гость выбирает удобное время
+  сам. Никакой переписки «а вам удобно в 15:00 или в 15:30?».`
+  (slot durations deliberately not in copy — the product will offer 15- and
+  30-minute slots)
 - Buttons: `Создать встречу` (primary, § 4.1) and `Как это работает`
   (secondary, `href="#how"`).
 - No images or illustrations in this stage — text layout only.
@@ -67,8 +75,8 @@ Sticky single line: logo left, nav center/right, primary button right.
 
 H2: `Как это работает`. Exactly three steps in a real ordered list (§ 6):
 
-1. `Опубликуйте слот` — `Отметьте свободные 30-минутные интервалы — утром,
-   днём или вечером, когда вам удобно говорить.`
+1. `Опубликуйте слот` — `Отметьте свободные интервалы — утром, днём или
+   вечером, когда вам удобно говорить.`
 2. `Поделитесь ссылкой` — `Отправьте гостю ссылку на страницу записи — он
    увидит все свободные слоты сразу.`
 3. `Созвонитесь` — `Гость выбирает время, встреча появляется в вашем списке
@@ -83,7 +91,7 @@ actual model (no accounts, no personal pages — do not invent features):
 
 1. `Владельцу встреч` — `Вы управляете расписанием: публикуете только то
    время, которое действительно свободно, и видите все записи в одном списке.`
-2. `Коллеге и команде` — `Не нужно согласовывать полчаса перепиской —
+2. `Коллеге и команде` — `Не нужно согласовывать время встречи перепиской —
    откройте ссылку на запись и выберите слот, который ещё свободен.`
 3. `Гостю без аккаунта` — `Запись занимает меньше минуты: имя, комментарий,
    слот — и всё. Регистрация не требуется.`
@@ -98,7 +106,7 @@ Desktop: single row. Mobile: stacked.
 
 ### 3.6 Footer — `SiteFooter`
 
-- Column "Продукт": links `Как это работает` (`#how`) and `Для владельцев`
+- Column "Продукт": links `Как это работает` (`#how`) and `Для кого`
   (`#audiences`) — same anchors as the header.
 - Column "Проект": external link `GitHub` →
   `https://github.com/Pir-4/ai-for-developers-project-386`, `target="_blank"`,
@@ -146,6 +154,36 @@ Desktop: single row. Mobile: stacked.
   default Mantine theme.
 - Tests query by role, accessible name, or landmark — never by class or CSS.
 
+### 6.1 Language switcher (i18n)
+
+- Two locales: `ru` (default) and `en`. Full interface copy exists in both;
+  no partial translation.
+- The switcher lives in the header: two buttons `RU` and `EN`, visible at all
+  breakpoints (it replaces nav links space-wise on mobile if needed — see § 5).
+- Clicking a locale instantly re-renders every string on the page in that
+  locale. Hrefs, anchor ids and external links never change (§ 4).
+- Choice is remembered: `localStorage` key `ui.locale`; a returning visitor
+  sees their last locale. Invalid/absent value → `ru`.
+- `<html lang>` reflects the active locale (`lang="ru"` / `lang="en"`).
+- English copy (canonical, mirrors § 3.1–3.6 structure):
+  - logo: `Call Booking`; nav: `How it works`, `Who it is for`; CTA (mirrors
+    `Создать встречу`): `Create a meeting`
+  - hero H1: `Book a call in 30 seconds`; subheading: `Publish the slots that
+    work for you — your guest picks a time without a single message back and
+    forth.`
+  - steps heading `How it works`; steps: `Publish a slot` / `Share the link`
+    / `Get on the call` with bodies mirroring § 3.3
+  - audiences heading `Who it is for`; cards: `For the meeting owner`,
+    `For colleagues and teams`, `For guests without an account` mirroring § 3.4
+  - closing CTA: `Ready to stop negotiating time over chat?` + supporting line
+    mirroring § 3.5, button `Create a meeting`
+  - footer: columns `Product` / `Project`, links mirror § 3.6 (the Hexlet line
+    stays `Учебный проект Хекслета` — a proper noun of the school, no `en` variant)
+  The implementation stores both variants as objects in
+  `web/src/content/landing.ts`; the EN strings above are the target, and if a
+  literal reads clumsy in tests, refine wording there and in the constants —
+  the structure must stay 1:1 with § 3.
+
 ## 7. Visual design constraints
 
 - Mantine 9, default theme. Explicitly excluded this stage: custom fonts,
@@ -179,9 +217,16 @@ Functional test cases:
    them (tests import the same constants and assert rendering — no duplicated
    literals).
 
+9. Language switcher (§ 6.1): RU renders by default; clicking `EN` swaps every
+   string on the page to the English copy while hrefs/anchor ids stay
+   unchanged; `<html lang>` follows the locale; the choice persists across a
+   fresh render (`localStorage`); clicking `RU` switches back. All § 8.1–8.7
+   structural cases must hold in both locales (run at least the heading and
+   landmark cases for EN too).
+
 Tooling acceptance:
 
-9. `web` gets devDependencies: `vitest@^3` (matches the server pin),
+10. `web` gets devDependencies: `vitest@^3` (matches the server pin),
    `@testing-library/react`, `@testing-library/jest-dom`,
    `@testing-library/user-event`. `jsdom@^26` is a **root** devDependency:
    vitest is hoisted to the workspace root and resolves `jsdom` from there,
@@ -190,12 +235,14 @@ Tooling acceptance:
    rationale as AGENTS.md "Version pins"). Scripts: `web` `"test": "vitest run"` +
    `"test:watch": "vitest"`; root `npm test` runs both workspaces; `make test`
    keeps working unchanged.
-10. Vitest config for `web`: `environment: 'jsdom'`; setup file polyfills
-    `matchMedia` and `ResizeObserver` (Mantine/AppShell need them in jsdom)
-    and imports `@testing-library/jest-dom/vitest`.
+11. Vitest config for `web`: `environment: 'jsdom'`; setup file polyfills
+    `matchMedia` and `ResizeObserver` (Mantine/AppShell need them in jsdom),
+    imports `@testing-library/jest-dom/vitest`, and clears `localStorage`
+    after each test (locale persistence must not leak between cases).
 
 Manual visual check (screenshot, not automated): the hero reads as the
-dominant block per § 3.2; layout stacks without horizontal scroll at 375px.
+dominant block per § 3.2; layout stacks without horizontal scroll at 375px;
+header (logo + switcher + CTA) fits at 375px in both locales.
 
 ## 9. Decision log
 
@@ -211,6 +258,18 @@ dominant block per § 3.2; layout stacks without horizontal scroll at 375px.
   after this spec merged (user instruction: "follow the spec; we'll decide
   later whether to align with the reference"). The spec stays authoritative;
   reference alignment is a separate future decision, not this stage.
+- 2026-10-03 — User review of PR #6 (three items, now in this spec):
+  1. nav label `Для владельцев` → `Для кого` (the link goes to the
+     three-audience section, not owner-only);
+  2. copy must not claim slot length — the product will offer 15- **and**
+     30-minute slots. NOTE: `docs/api.md` still says "a slot is exactly 30
+     minutes"; updating the API contract (variable durations) is a
+     **backend-stage task**, tracked by this decision line only;
+  3. UI language switcher RU/EN added to scope (§ 6.1) — interface strings
+     only, server data stays locale-independent.
+- 2026-10-03 — User approved the landing style; frozen into `docs/ui-style.md`
+  as the visual contract for all future pages. `docs/reference/*.png` are
+  flow/logic references (booking catalog → event type → slots), not style.
 
 ## 10. Open questions
 
