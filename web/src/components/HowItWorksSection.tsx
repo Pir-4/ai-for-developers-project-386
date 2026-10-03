@@ -6,7 +6,7 @@ import {
   Text,
   Title,
 } from '@mantine/core'
-import { landing } from '../content/landing.ts'
+import { useLanding } from '../i18n.tsx'
 
 const stepsGridStyle = {
   listStyleType: 'none',
@@ -18,13 +18,14 @@ const stepsGridStyle = {
 } as const
 
 export function HowItWorksSection() {
+  const t = useLanding()
   return (
     <Box component="section" id="how" style={{ scrollMarginTop: 80 }}>
       <Container size="lg" py="xl">
         <Stack gap="lg">
-          <Title order={2}>{landing.how.heading}</Title>
+          <Title order={2}>{t.how.heading}</Title>
           <Box component="ol" style={stepsGridStyle}>
-            {landing.how.steps.map((step, index) => (
+            {t.how.steps.map((step, index) => (
               <Box component="li" key={step.title}>
                 <Card withBorder p="lg" h="100%">
                   <Stack gap="xs">

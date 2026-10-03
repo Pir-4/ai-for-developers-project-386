@@ -2,7 +2,8 @@ import { MantineProvider } from '@mantine/core'
 import { render, screen, within } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
 import App from '../src/App.tsx'
-import { landing } from '../src/content/landing.ts'
+import { landingCopy } from '../src/content/landing.ts'
+import { LandingLocaleProvider } from '../src/i18n.tsx'
 import {
   audiencesHref,
   createMeetingHref,
@@ -16,18 +17,18 @@ import {
 const copy = {
   logo: 'Запись на звонок',
   navHow: 'Как это работает',
-  navOwners: 'Для владельцев',
+  navOwners: 'Для кого',
   createMeeting: 'Создать встречу',
   heroTitle: 'Запись на звонок за 30 секунд',
   heroSubtitle:
-    'Вы публикуете свободные 30-минутные слоты — гость выбирает удобное время сам. ' +
+    'Вы публикуете свободные слоты — гость выбирает удобное время сам. ' +
     'Никакой переписки «а вам удобно в 15:00 или в 15:30?».',
   howHeading: 'Как это работает',
   steps: [
     {
       title: 'Опубликуйте слот',
       body:
-        'Отметьте свободные 30-минутные интервалы — утром, днём или вечером, ' +
+        'Отметьте свободные интервалы — утром, днём или вечером, ' +
         'когда вам удобно говорить.',
     },
     {
@@ -53,7 +54,7 @@ const copy = {
     {
       title: 'Коллеге и команде',
       body:
-        'Не нужно согласовывать полчаса перепиской — откройте ссылку на запись и ' +
+        'Не нужно согласовывать время встречи перепиской — откройте ссылку на запись и ' +
         'выберите слот, который ещё свободен.',
     },
     {
@@ -74,29 +75,31 @@ const copy = {
 function renderLanding() {
   return render(
     <MantineProvider>
-      <App />
+      <LandingLocaleProvider>
+        <App />
+      </LandingLocaleProvider>
     </MantineProvider>,
   )
 }
 
 describe('content constants', () => {
   it('store exactly the canonical spec copy (no duplicated literals)', () => {
-    expect(landing.logo).toBe(copy.logo)
-    expect(landing.nav.how).toBe(copy.navHow)
-    expect(landing.nav.owners).toBe(copy.navOwners)
-    expect(landing.createMeeting).toBe(copy.createMeeting)
-    expect(landing.hero.title).toBe(copy.heroTitle)
-    expect(landing.hero.subtitle).toBe(copy.heroSubtitle)
-    expect(landing.how.heading).toBe(copy.howHeading)
-    expect(landing.how.steps).toEqual(copy.steps)
-    expect(landing.audiences.heading).toBe(copy.audiencesHeading)
-    expect(landing.audiences.cards).toEqual(copy.audiences)
-    expect(landing.cta.heading).toBe(copy.ctaHeading)
-    expect(landing.cta.body).toBe(copy.ctaBody)
-    expect(landing.footer.product).toBe(copy.footerProduct)
-    expect(landing.footer.project).toBe(copy.footerProject)
-    expect(landing.footer.github).toBe(copy.footerGithub)
-    expect(landing.footer.hexlet).toBe(copy.footerHexlet)
+    expect(landingCopy.ru.logo).toBe(copy.logo)
+    expect(landingCopy.ru.nav.how).toBe(copy.navHow)
+    expect(landingCopy.ru.nav.owners).toBe(copy.navOwners)
+    expect(landingCopy.ru.createMeeting).toBe(copy.createMeeting)
+    expect(landingCopy.ru.hero.title).toBe(copy.heroTitle)
+    expect(landingCopy.ru.hero.subtitle).toBe(copy.heroSubtitle)
+    expect(landingCopy.ru.how.heading).toBe(copy.howHeading)
+    expect(landingCopy.ru.how.steps).toEqual(copy.steps)
+    expect(landingCopy.ru.audiences.heading).toBe(copy.audiencesHeading)
+    expect(landingCopy.ru.audiences.cards).toEqual(copy.audiences)
+    expect(landingCopy.ru.cta.heading).toBe(copy.ctaHeading)
+    expect(landingCopy.ru.cta.body).toBe(copy.ctaBody)
+    expect(landingCopy.ru.footer.product).toBe(copy.footerProduct)
+    expect(landingCopy.ru.footer.project).toBe(copy.footerProject)
+    expect(landingCopy.ru.footer.github).toBe(copy.footerGithub)
+    expect(landingCopy.ru.footer.hexlet).toBe(copy.footerHexlet)
   })
 
   it('declare the anchor contract of § 4', () => {

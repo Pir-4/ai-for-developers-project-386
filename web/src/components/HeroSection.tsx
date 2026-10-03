@@ -1,8 +1,9 @@
 import { Box, Button, Container, Group, Stack, Text, Title } from '@mantine/core'
-import { landing } from '../content/landing.ts'
+import { useLanding } from '../i18n.tsx'
 import { createMeetingHref, howHref } from '../links.ts'
 
 export function HeroSection() {
+  const t = useLanding()
   return (
     <Box component="section">
       <Container size="lg" py="calc(4rem + 6vw)">
@@ -12,17 +13,17 @@ export function HeroSection() {
             fw={900}
             style={{ fontSize: 'clamp(2.5rem, 6vw, 4rem)', lineHeight: 1.1 }}
           >
-            {landing.hero.title}
+            {t.hero.title}
           </Title>
           <Text size="xl" c="dimmed" maw={620}>
-            {landing.hero.subtitle}
+            {t.hero.subtitle}
           </Text>
           <Group gap="md">
             <Button component="a" href={createMeetingHref} size="lg">
-              {landing.createMeeting}
+              {t.createMeeting}
             </Button>
             <Button component="a" href={howHref} size="lg" variant="default">
-              {landing.nav.how}
+              {t.nav.how}
             </Button>
           </Group>
         </Stack>

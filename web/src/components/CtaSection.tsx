@@ -1,20 +1,21 @@
 import { Box, Button, Container, Stack, Text, Title } from '@mantine/core'
-import { landing } from '../content/landing.ts'
+import { useLanding } from '../i18n.tsx'
 import { createMeetingHref } from '../links.ts'
 
 export function CtaSection() {
+  const t = useLanding()
   return (
     <Box component="section" id="cta" style={{ scrollMarginTop: 80 }}>
       <Container size="sm" py="xl">
         <Stack gap="md" align="center">
           <Title order={2} ta="center">
-            {landing.cta.heading}
+            {t.cta.heading}
           </Title>
           <Text c="dimmed" ta="center">
-            {landing.cta.body}
+            {t.cta.body}
           </Text>
           <Button component="a" href={createMeetingHref} size="lg">
-            {landing.createMeeting}
+            {t.createMeeting}
           </Button>
         </Stack>
       </Container>

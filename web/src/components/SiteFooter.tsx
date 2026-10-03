@@ -1,5 +1,5 @@
 import { Anchor, Box, Container, Group, Stack, Text } from '@mantine/core'
-import { landing } from '../content/landing.ts'
+import { useLanding } from '../i18n.tsx'
 import {
   audiencesHref,
   githubHref,
@@ -8,29 +8,30 @@ import {
 } from '../links.ts'
 
 type FooterLink = {
-  readonly label: string
-  readonly href: string
-  readonly external?: boolean
+  label: string
+  href: string
+  external?: boolean
 }
 
-const columns: { heading: string; links: FooterLink[] }[] = [
-  {
-    heading: landing.footer.product,
-    links: [
-      { label: landing.nav.how, href: howHref },
-      { label: landing.nav.owners, href: audiencesHref },
-    ],
-  },
-  {
-    heading: landing.footer.project,
-    links: [
-      { label: landing.footer.github, href: githubHref, external: true },
-      { label: landing.footer.hexlet, href: hexletHref, external: true },
-    ],
-  },
-]
-
 export function SiteFooter() {
+  const t = useLanding()
+  const columns: { heading: string; links: FooterLink[] }[] = [
+    {
+      heading: t.footer.product,
+      links: [
+        { label: t.nav.how, href: howHref },
+        { label: t.nav.owners, href: audiencesHref },
+      ],
+    },
+    {
+      heading: t.footer.project,
+      links: [
+        { label: t.footer.github, href: githubHref, external: true },
+        { label: t.footer.hexlet, href: hexletHref, external: true },
+      ],
+    },
+  ]
+
   return (
     <Box
       component="footer"

@@ -7,16 +7,17 @@ import {
   Text,
   Title,
 } from '@mantine/core'
-import { landing } from '../content/landing.ts'
+import { useLanding } from '../i18n.tsx'
 
 export function AudiencesSection() {
+  const t = useLanding()
   return (
     <Box component="section" id="audiences" style={{ scrollMarginTop: 80 }}>
       <Container size="lg" py="xl">
         <Stack gap="lg">
-          <Title order={2}>{landing.audiences.heading}</Title>
+          <Title order={2}>{t.audiences.heading}</Title>
           <Group gap="md" wrap="wrap">
-            {landing.audiences.cards.map((card) => (
+            {t.audiences.cards.map((card) => (
               <Card
                 key={card.title}
                 component="article"
