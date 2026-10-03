@@ -25,6 +25,9 @@ Behavior reference — video in README: https://files.hexlet.app/a/2ipc5m
 - Production: a single process (`npm start`) serves both the API (`/api/*`) and static files from `web/dist` — there is no separate frontend server.
 - Time — UTC ISO 8601 strings only; a slot is exactly 30 minutes, `start` aligned to `:00`/`:30`.
 - DB — SQLite, file `data/app.db`; arrives at the backend stage, not present in the code yet. `data/` is in .gitignore.
+- `docs/reference/` — local design reference screenshots (e.g. for the landing page). Gitignored; never commit its contents.
+- `docs/ui-style.md` — the approved visual contract (from the landing page) that every new page follows.
+- `docs/specs/` — feature specifications (SDD: the spec is written and merged before implementation).
 
 ## Commands
 
@@ -40,6 +43,8 @@ Behavior reference — video in README: https://files.hexlet.app/a/2ipc5m
 - `vite@6`, `vitest@3`, `@fastify/static@9` are pinned for the local Node 22.11: vite 8 / vitest 4 require
   Node ≥ 22.12 (native rolldown binary), `@fastify/static@10` needs `require(esm)` from Node ≥ 22.12.
   If the local Node is upgraded to ≥ 22.12, the pins can be revisited. CI and Docker use fresh Node 22 — no issue there.
+- `jsdom@26` (devDep for web tests, pinned via root `overrides`): jsdom 27's CSS stack `require()`s
+  an ESM-only package, which also needs `require(esm)` from Node ≥ 22.12.
 
 ## Do not touch
 
