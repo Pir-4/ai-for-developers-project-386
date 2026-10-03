@@ -55,3 +55,17 @@ Behavior reference — video in README: https://files.hexlet.app/a/2ipc5m
 - Dependencies — via `npm install <pkg> -w server|-w web` (dev: `-D`); the root `package-lock.json`
   is committed — needed for reproducible builds (`npm ci` in CI and Docker).
 - CI: `.github/workflows/ci.yml` runs lint + test + build on every push; `release-please.yml` maintains a release PR on `main`.
+
+## Agent skills
+
+### Issue tracker
+
+GitHub Issues on `Pir-4/ai-for-developers-project-386`, via the `gh` CLI. See `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+Default five canonical labels (`needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`, `wontfix`). See `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+Single-context: `GLOSSARY.md` + `docs/adr/` at the repo root. See `docs/agents/domain.md`.
