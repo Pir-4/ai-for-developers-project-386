@@ -5,7 +5,7 @@ import { audiencesHref, createMeetingHref, howHref } from '../links.ts'
 function LocaleSwitcher() {
   const { locale, setLocale } = useLandingLocale()
   return (
-    <Group gap={4} aria-label="Language">
+    <Group gap={2} wrap="nowrap" aria-label="Language">
       <Button
         size="compact-xs"
         variant={locale === 'ru' ? 'filled' : 'default'}
@@ -30,11 +30,22 @@ export function SiteHeader() {
   const t = useLanding()
   return (
     <AppShell.Header>
-      <Group h="100%" px="md" justify="space-between" gap="sm">
-        <Anchor href="/" fw={700} underline="never">
+      <Group h="100%" px="md" justify="space-between" gap="sm" wrap="nowrap">
+        <Anchor
+          href="/"
+          fw={700}
+          underline="never"
+          style={{
+            minWidth: 0,
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            whiteSpace: 'nowrap',
+            fontSize: 'clamp(0.875rem, 2.8vw, 1.1rem)',
+          }}
+        >
           {t.logo}
         </Anchor>
-        <Group gap="md" visibleFrom="sm">
+        <Group gap="md" visibleFrom="xs">
           <Anchor href={howHref} size="sm" underline="never">
             {t.nav.how}
           </Anchor>
@@ -42,9 +53,9 @@ export function SiteHeader() {
             {t.nav.owners}
           </Anchor>
         </Group>
-        <Group gap="sm">
+        <Group gap="xs" wrap="nowrap">
           <LocaleSwitcher />
-          <Button component="a" href={createMeetingHref} size="sm">
+          <Button component="a" href={createMeetingHref} size="compact-sm">
             {t.createMeeting}
           </Button>
         </Group>
