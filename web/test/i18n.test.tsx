@@ -53,9 +53,8 @@ describe('language switcher (spec § 6.1)', () => {
     expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent(
       en.hero.title,
     )
-    expect(screen.getByRole('heading', { level: 2 })).toHaveTextContent(
-      en.how.heading,
-    )
+    const h2s = screen.getAllByRole('heading', { level: 2 })
+    expect(h2s[0]).toHaveTextContent(en.how.heading)
     const banner = screen.getByRole('banner')
     expect(
       within(banner).getByRole('link', { name: en.nav.how }),
