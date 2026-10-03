@@ -30,10 +30,12 @@ Use `AppShell` (`header={{ height: 60 }} padding="md"`) with semantic
 ## Header
 
 - Logo: `Anchor` fw 700 → `/`, text `Запись на звонок` / `Call Booking`.
-- Inline nav (`Anchor` size sm, `underline="never"`): visible from `sm` only
-  (`visibleFrom="sm"`, stays in DOM below — hide visually, not from the tree).
-- Right cluster: language switcher (`RU`/`EN`, `size="xs"`, always visible) +
-  primary CTA `size="sm"`.
+- Inline nav (`Anchor` size sm, `underline="never"`): visible from `xs` (576px)
+  only (`visibleFrom="xs"`, stays in DOM below — hide visually, not from the
+  tree).
+- Right cluster: language switcher (`RU`/`EN`, `compact-xs`, always visible) +
+  primary CTA (`compact-sm`). Header is one non-wrapping line (`wrap="nowrap"`,
+  logo `clamp(0.875rem, 2.8vw, 1.1rem)`) — no second line at 320px.
 - Header stays compact (≤ 64px); it must not compete with the hero.
 
 ## Hero (per page that has one)

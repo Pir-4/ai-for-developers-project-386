@@ -133,12 +133,15 @@ Desktop: single row. Mobile: stacked.
 
 ## 5. Responsive behavior
 
-- Breakpoint: Mantine `sm` (576px).
-- Below `sm`: header nav links are hidden (visually only — they stay in the
-  DOM, § 8 tests cannot rely on viewport); logo and primary button remain.
-  No burger in this stage.
-- Steps and audience cards stack vertically below `sm`.
-- 320px–1920px without horizontal scroll; verified manually via screenshot.
+- Mantine breakpoints: `xs` = 576px, `sm` = 768px.
+- Below `xs`: header nav links are hidden (visually only — they stay in the
+  DOM, § 8 tests cannot rely on viewport); logo, language switcher and the
+  primary button remain. No burger in this stage.
+- The header is a single non-wrapping line: the logo shrinks via
+  `clamp(0.875rem, 2.8vw, 1.1rem)`, switcher `compact-xs`, CTA `compact-sm`.
+- Steps and audience cards stack vertically (CSS auto-fit grid, no JS).
+- 320px–1920px without horizontal scroll; verified manually via screenshot
+  in both locales.
 
 ## 6. Accessibility (spec says what, implementation picks how)
 
