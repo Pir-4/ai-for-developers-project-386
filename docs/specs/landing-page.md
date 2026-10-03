@@ -134,7 +134,8 @@ Desktop: single row. Mobile: stacked.
 
 ## 6. Accessibility (spec says what, implementation picks how)
 
-- Exactly one `<h1>`; each content section has one `<h2>`.
+- Exactly one `<h1>` (hero title); each of the three content sections below the
+  hero has exactly one `<h2>`.
 - Real landmarks: `<header>` (banner), `<main>`, `<footer>` (contentinfo) —
   Mantine `AppShell` must not swallow them.
 - Steps are a programmatically ordered `<ol>`; a decorative number badge is
@@ -159,7 +160,8 @@ and fail on first run (red), then implementation turns them green.
 
 Functional test cases:
 
-1. One H1 with canonical hero text; four H2s with canonical section texts.
+1. One H1 with canonical hero text; one H2 with canonical section text for
+   each of the three sections below the hero (`how`, `audiences`, `cta`).
 2. `banner`, `main`, `contentinfo` landmarks exist; all content sections are
    inside `main`.
 3. Header nav links `Как это работает` / `Для владельцев` have hrefs `#how` /
