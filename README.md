@@ -28,10 +28,14 @@ make run     # dev: backend http://localhost:8000, frontend http://localhost:517
 make test    # tests
 make lint    # lint
 
+make generate   # regenerate the OpenAPI spec and TS types from the TypeSpec sources
+
 make docker-build && make docker-run   # build and run in a container (http://localhost:8000)
 ```
 
-The API contract lives in [docs/api.md](docs/api.md).
+The API contract is TypeSpec-first: the sources live in [`contract/`](contract/) (`main.tsp`), and `make generate`
+emits the OpenAPI 3.0 spec ([`contract/openapi.yaml`](contract/openapi.yaml)) plus TypeScript types for `server/`
+and `web/`. Generated artifacts are committed and never hand-edited; CI fails if they drift from the sources.
 
 ---
 

@@ -10,16 +10,23 @@ Behavior reference — video in README: https://files.hexlet.app/a/2ipc5m
 
 ## Workflow
 
-- Development in stages, contract-first: contract (`docs/api.md`) → frontend → backend → scenario tests → deploy.
-  Do not skip stages unless the user explicitly asks.
-- `docs/api.md` is the source of truth. Changing API behavior = edit the contract first, then the code.
+- Development in stages, contract-first: contract (TypeSpec sources in `contract/` + `make generate`) →
+  frontend → backend → scenario tests → deploy. Do not skip stages unless the user explicitly asks.
+- The TypeSpec sources in `contract/` are the source of truth. Changing API behavior = edit the TypeSpec first,
+  run `make generate`, commit the regenerated artifacts, then the code. Generated artifacts (`contract/openapi.yaml`,
+  `server/src/generated/`, `web/src/generated/`) are committed but never hand-edited; CI fails if they drift.
 - Final readiness criterion: the image builds and runs (`make docker-build && make docker-run`).
 - Only the agent writes code; the user does not edit code by hand.
 
 ## Stack and structure
 
-- Node.js 22+, TypeScript (strict, ESM/NodeNext), npm workspaces: `server/` and `web/`.
-- `server/` — Fastify 5. `src/app.ts` — `buildApp()` (routes, plugins), `src/index.ts` — startup on `PORT ?? 8000`.
+- Node.js 22+, TypeScript (strict, ESM/NodeNext), npm workspaces: `contract/`, `server/` and `web/`.
+- `contract/` — the API contract: TypeSpec sources (`main.tsp`, `tspconfig.yaml`). `make generate` emits the
+  OpenAPI 3.0 spec (`contract/openapi.yaml`), the JSON copy for the server runtime
+  (`server/src/generated/openapi.json`) and `openapi-typescript` types for server and web (`*/src/generated/schema.d.ts`).
+- `server/` — Fastify 5. `src/app.ts` — `buildApp()`: `fastify-openapi-glue` registers routes and request
+  validation from `src/generated/openapi.json` under the `/api` prefix; `src/services/` — hand-written handlers,
+  one per operationId, typed with the generated types. `src/index.ts` — startup on `PORT ?? 8000`.
   Tests — Vitest via `app.inject()`, located in `server/test/`.
 - `web/` — Vite 6 + React 19 + Mantine 9. Dev proxy `/api` → :8000 (`vite.config.ts`).
 - Production: a single process (`npm start`) serves both the API (`/api/*`) and static files from `web/dist` — there is no separate frontend server.
@@ -34,6 +41,7 @@ Behavior reference — video in README: https://files.hexlet.app/a/2ipc5m
 - `make setup` — `npm ci` (requires Node ≥ 22; the local default `node` may be 20, then use Node 22
   from nvm: `export PATH="$HOME/.nvm/versions/node/v22.11.0/bin:$PATH"`)
 - `make run` — dev: backend :8000 + frontend :5173 (concurrently)
+- `make generate` — regenerate the API artifacts (OpenAPI spec + TS types) from the TypeSpec sources in `contract/`
 - `make test` — Vitest; a single test: `npm test -w server -- test/health.test.ts`
 - `make lint` — ESLint (flat config at the root, typescript-eslint)
 - `make docker-build` / `make docker-run` — image `call-booking`, port 8000
@@ -57,7 +65,7 @@ Behavior reference — video in README: https://files.hexlet.app/a/2ipc5m
   and version from them. Load the `conventional-commits` skill (`.opencode/skills/conventional-commits/`) before committing.
 - All documentation (AGENTS.md, README, `docs/`, skills) and commit messages — in English.
   Conversation with the user and UI texts — in Russian.
-- Dependencies — via `npm install <pkg> -w server|-w web` (dev: `-D`); the root `package-lock.json`
+- Dependencies — via `npm install <pkg> -w contract|-w server|-w web` (dev: `-D`); the root `package-lock.json`
   is committed — needed for reproducible builds (`npm ci` in CI and Docker).
 - CI: `.github/workflows/ci.yml` runs lint + test + build on every push; `release-please.yml` maintains a release PR on `main`.
 

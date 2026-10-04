@@ -1,0 +1,17 @@
+{
+  "name": "@call-booking/contract",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "TypeSpec sources of the API contract. `make generate` emits the OpenAPI spec and the TS types consumed by server/ and web/. Generated artifacts are committed and never hand-edited.",
+  "scripts": {
+    "generate": "tsp compile . && openapi-typescript openapi.yaml -o ../server/src/generated/schema.d.ts && openapi-typescript openapi.yaml -o ../web/src/generated/schema.d.ts && node scripts/post-generate.mjs"
+  },
+  "devDependencies": {
+    "@typespec/compiler": "^1.16.0",
+    "@typespec/http": "^1.16.0",
+    "@typespec/openapi3": "^1.16.0",
+    "@typespec/versioning": "^0.86.0",
+    "openapi-typescript": "^7.13.0"
+  }
+}
