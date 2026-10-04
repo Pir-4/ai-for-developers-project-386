@@ -1,0 +1,50 @@
+{
+  "x-generated": "Generated from the TypeSpec sources in contract/ — do not edit it by hand. Regenerate with: make generate",
+  "openapi": "3.0.0",
+  "info": {
+    "title": "Call Booking API",
+    "version": "1.0.0"
+  },
+  "tags": [],
+  "paths": {
+    "/health": {
+      "get": {
+        "operationId": "health",
+        "description": "Liveness probe.",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "The request has succeeded.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthStatus"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "HealthStatus": {
+        "type": "object",
+        "required": [
+          "status"
+        ],
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "ok"
+            ],
+            "description": "Always `\"ok\"`."
+          }
+        },
+        "description": "Liveness probe response."
+      }
+    }
+  }
+}

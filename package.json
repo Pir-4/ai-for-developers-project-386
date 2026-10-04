@@ -5,6 +5,7 @@
   "description": "Запись на звонок — сервис бронирования времени (учебный проект Хекслета)",
   "type": "module",
   "workspaces": [
+    "contract",
     "server",
     "web"
   ],
@@ -16,6 +17,7 @@
   },
   "scripts": {
     "dev": "concurrently -n server,web -c blue,green \"npm run dev -w server\" \"npm run dev -w web\"",
+    "generate": "npm run generate -w contract",
     "build": "npm run build -w web && npm run build -w server",
     "start": "node server/dist/index.js",
     "test": "npm test -w server && npm test -w web",

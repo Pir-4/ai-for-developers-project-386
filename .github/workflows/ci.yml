@@ -19,3 +19,9 @@ jobs:
       - run: npm run lint
       - run: npm test
       - run: npm run build
+
+      - name: Check that generated artifacts are fresh
+        run: |
+          npm run generate
+          git add -A
+          git diff --cached --exit-code

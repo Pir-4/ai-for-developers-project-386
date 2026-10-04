@@ -1,0 +1,10 @@
+kind: project
+entrypoint: main.tsp
+emit:
+  - "@typespec/openapi3"
+options:
+  "@typespec/openapi3":
+    emitter-output-dir: "{project-root}"
+    file-type: ["yaml", "json"]
+    output-file: "openapi.{file-type}"
+    omit-unreachable-types: true
