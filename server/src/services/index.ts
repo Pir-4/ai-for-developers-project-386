@@ -1,7 +1,17 @@
+import type { DatabaseSync } from "node:sqlite";
 import { health } from "./health.js";
+import {
+  createCreateEventTypeHandler,
+  createListEventTypesHandler,
+} from "./event-types.js";
 
-// One handler per operationId from the generated contract (contract/openapi.yaml).
-// fastify-openapi-glue maps each operation to the handler with the same key.
-export const serviceHandlers = {
-  health,
-};
+// Один хендлер на operationId из контракта (contract/openapi.yaml);
+// fastify-openapi-glue связывает операцию с хендлером по ключу.
+// Хендлерам нужна база — поэтому собираем объект фабрикой.
+export function createServiceHandlers(db: DatabaseSync) {
+  return {
+    health,
+    createEventType: createCreateEventTypeHandler(db),
+    listEventTypes: createListEventTypesHandler(db),
+  };
+}
