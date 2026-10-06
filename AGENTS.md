@@ -24,22 +24,27 @@ Behavior reference — video in README: https://files.hexlet.app/a/2ipc5m
 - `contract/` — the API contract: TypeSpec sources (`main.tsp`, `tspconfig.yaml`). `make generate` emits the
   OpenAPI 3.0 spec (`contract/openapi.yaml`), the JSON copy for the server runtime
   (`server/src/generated/openapi.json`) and `openapi-typescript` types for server and web (`*/src/generated/schema.d.ts`).
-- `server/` — Fastify 5. `src/app.ts` — `buildApp()`: `fastify-openapi-glue` registers routes and request
-  validation from `src/generated/openapi.json` under the `/api` prefix; `src/services/` — hand-written handlers,
-  one per operationId, typed with the generated types. `src/index.ts` — startup on `PORT ?? 8000`.
-  Tests — Vitest via `app.inject()`, located in `server/test/`.
-- `web/` — Vite 6 + React 19 + Mantine 9. Dev proxy `/api` → :8000 (`vite.config.ts`).
-- Production: a single process (`npm start`) serves both the API (`/api/*`) and static files from `web/dist` — there is no separate frontend server.
+- `server/` — Fastify 5. `src/app.ts` — `buildApp({ dbPath })`: `fastify-openapi-glue` registers routes and request
+  validation from `src/generated/openapi.json` under the `/api` prefix (validation failures → 422 in the contract's
+  `ValidationError` shape); `src/db/` — `node:sqlite` + an ordered-SQL migration runner (`PRAGMA user_version`,
+  one transaction at startup; `.sql` files in `src/db/migrations`, copied to `dist` by the build);
+  `src/services/` — hand-written handlers, one per operationId, assembled by `createServiceHandlers(db)` in
+  `src/services/index.ts`, typed with the generated types. `src/index.ts` — startup on `PORT ?? 8000`.
+  Tests — Vitest via `app.inject()` with `dbPath: ":memory:"`, located in `server/test/`.
+- `web/` — Vite 6 + React 19 + Mantine 9 + react-router (client routes `/`, `/login`, `/owner/:email`,
+  `/book/:email/:id`; pages in `src/pages/`, copy in `src/content/`, `src/api.ts` — the typed API client).
+  Dev proxy `/api` → :8000 (`vite.config.ts`).
+- Production: a single process (`npm start`) serves both the API (`/api/*`) and static files from `web/dist` — there is no separate frontend server. Client routes get the SPA fallback (`index.html`); unknown `/api/*` stays JSON 404.
 - Time — UTC ISO 8601 strings only; a slot is exactly 30 minutes, `start` aligned to `:00`/`:30`.
-- DB — SQLite, file `data/app.db`; arrives at the backend stage, not present in the code yet. `data/` is in .gitignore.
+- DB — SQLite via `node:sqlite`, file `data/app.db` (default path is resolved from the repo root, so cwd does not matter). Requires local Node ≥ 22.13 (unflagged `node:sqlite`; the process prints an ExperimentalWarning on Node 22 — expected). `data/` is in .gitignore.
 - `docs/reference/` — local design reference screenshots (e.g. for the landing page). Gitignored; never commit its contents.
 - `docs/ui-style.md` — the approved visual contract (from the landing page) that every new page follows.
 - `docs/specs/` — feature specifications (SDD: the spec is written and merged before implementation).
 
 ## Commands
 
-- `make setup` — `npm ci` (requires Node ≥ 22; the local default `node` may be 20, then use Node 22
-  from nvm: `export PATH="$HOME/.nvm/versions/node/v22.11.0/bin:$PATH"`)
+- `make setup` — `npm ci` (requires Node ≥ 22.13: `node:sqlite` unflagged; the local default `node`
+  may be older, then use Node 22 from nvm: `export PATH="$HOME/.nvm/versions/node/v22.23.3/bin:$PATH"`)
 - `make run` — dev: backend :8000 + frontend :5173 (concurrently)
 - `make generate` — regenerate the API artifacts (OpenAPI spec + TS types) from the TypeSpec sources in `contract/`
 - `make test` — Vitest; a single test: `npm test -w server -- test/health.test.ts`

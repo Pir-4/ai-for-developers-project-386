@@ -48,8 +48,8 @@ Sticky single line: logo left, nav center/right, primary button right.
 | Element                | Text / behavior |
 |------------------------|-----------------|
 | Logo (link to `/`)     | `Запись на звонок` |
-| Nav link 1             | `Как это работает` → `#how` |
-| Nav link 2             | `Для кого` → `#audiences` (leads to the three-audience section) |
+| Nav link 1             | `Как это работает` → `/#how` |
+| Nav link 2             | `Для кого` → `/#audiences` (leads to the three-audience section) |
 | Language switcher      | `RU` / `EN` — toggles all UI copy (§ 6.1) |
 | Primary button         | `Создать встречу` → § 4.1 |
 
@@ -62,7 +62,7 @@ Sticky single line: logo left, nav center/right, primary button right.
   (slot durations deliberately not in copy — the product will offer 15- and
   30-minute slots)
 - Buttons: `Создать встречу` (primary, § 4.1) and `Как это работает`
-  (secondary, `href="#how"`).
+  (secondary, → `/#how`).
 - No images or illustrations in this stage — text layout only.
 - **Visual scale (contract)**: the hero is the dominant block of the page —
   clearly larger than every other section. H1 in the hero uses display-size
@@ -106,8 +106,8 @@ Desktop: single row. Mobile: stacked.
 
 ### 3.6 Footer — `SiteFooter`
 
-- Column "Продукт": links `Как это работает` (`#how`) and `Для кого`
-  (`#audiences`) — same anchors as the header.
+- Column "Продукт": links `Как это работает` (`/#how`) and `Для кого`
+  (`/#audiences`) — same targets as the header.
 - Column "Проект": external link `GitHub` →
   `https://github.com/Pir-4/ai-for-developers-project-386`, `target="_blank"`,
   `rel` contains `noopener`.
@@ -117,19 +117,22 @@ Desktop: single row. Mobile: stacked.
 
 ## 4. Navigation and URLs
 
-- Single route `/`. No router in this stage (decision, § 9).
+- The app has a client router (react-router, introduced by issue #20): `/` is
+  the landing, `/login` signs an owner in by email, `/owner/:email` is the
+  owner area, `/book/:email/:id` is the guest link target.
 - Anchor ids are stable contract values: `how`, `audiences`, `cta`.
-- Header and footer nav links point to `#how` / `#audiences`.
+- Header and footer nav links point to `/#how` / `/#audiences` — the landing
+  anchors addressed app-wide, so the links work from every page, not only from
+  the landing itself.
 
-### 4.1 CTA placeholder behavior
+### 4.1 CTA behavior
 
-- All `Создать встречу` buttons (header, hero, closing) render as
-  `href="#cta"` — they scroll to the closing CTA section, because a booking
-  page does not exist yet.
-- No click handlers, no alerts, no disabled state.
+- All `Создать встречу` buttons (header, hero, closing) lead to `/owner` —
+  the owner area; bare `/owner` redirects to `/login` (issue #20).
+- Rendered as router links (client-side navigation, no full reload).
+- No click handlers beyond navigation, no alerts, no disabled state.
 - The target is defined once: `web/src/links.ts` exports
-  `createMeetingHref` (currently `'#cta'`). Moving to the real booking page in
-  a later stage is a one-line change plus test copy update.
+  `createMeetingHref` (currently `'/owner'`).
 
 ## 5. Responsive behavior
 
@@ -205,13 +208,13 @@ Functional test cases:
    each of the three sections below the hero (`how`, `audiences`, `cta`).
 2. `banner`, `main`, `contentinfo` landmarks exist; all content sections are
    inside `main`.
-3. Header nav links `Как это работает` / `Для владельцев` have hrefs `#how` /
-   `#audiences`; both ids exist on the page inside `main`.
+3. Header nav links `Как это работает` / `Для владельцев` have hrefs `/#how` /
+   `/#audiences`; both ids exist on the page inside `main`.
 4. Steps section renders an ordered list with exactly 3 items, each item
    containing its canonical title.
 5. Audiences section renders exactly 3 cards with canonical titles.
 6. Closing CTA section has id `cta` and a link/button named `Создать встречу`
-   with `href="#cta"`; header and hero primary CTAs share the same href from
+   with `href="/owner"`; header and hero primary CTAs share the same href from
    `links.ts`.
 7. Footer contains the two nav links with the same hrefs as the header and two
    external links (GitHub, Hexlet) with `target="_blank"` and `rel` containing
@@ -249,6 +252,11 @@ header (logo + switcher + CTA) fits at 375px in both locales.
 
 ## 9. Decision log
 
+- 2026-10-06 — Navigation model superseded by issue #20: react-router
+  introduced (client routes `/`, `/login`, `/owner/:email`, `/book/:email/:id`).
+  Landing nav anchors become app-wide `/#how` / `/#audiences`; the `Создать
+  встречу` CTAs lead to `/owner` (redirecting to `/login` when no email is
+  known). The 2026-10-03 single-route decision below was correct for its stage.
 - 2026-10-03 — Navigation model: in-page anchors, single route, no router
   (user-approved). The booking page does not exist yet; a router would be
   speculative scope.
