@@ -1,6 +1,7 @@
 import { MantineProvider } from '@mantine/core'
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import dayjs from 'dayjs'
 import { MemoryRouter, Route, Routes } from 'react-router'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { appCopy } from '../src/content/app.ts'
@@ -16,6 +17,19 @@ function todayDate(): string {
   const month = String(now.getMonth() + 1).padStart(2, '0')
   const day = String(now.getDate()).padStart(2, '0')
   return `${now.getFullYear()}-${month}-${day}`
+}
+
+// Mantine's day buttons are labelled "D MMMM YYYY" (no DatesProvider locale
+// override in this app, so English) — matches the calendar's own aria-label.
+function dayAccessibleName(date: Date): string {
+  return dayjs(date).format('D MMMM YYYY')
+}
+
+// A day in the same displayed month as today but guaranteed not to be it.
+function anotherDayThisMonth(): Date {
+  const now = new Date()
+  const day = now.getDate() === 1 ? 2 : 1
+  return new Date(now.getFullYear(), now.getMonth(), day)
 }
 
 function localIso(hours: number, minutes = 0): string {
@@ -207,5 +221,31 @@ describe('кабинет владельца: календарь доступно
     stubApi()
     renderOwner()
     expect(await screen.findByText(ru.meetingsEmpty)).toBeInTheDocument()
+  })
+
+  it('отмечает в календаре день со встречей, но не день без неё', async () => {
+    stubApi({
+      meetings: [
+        {
+          id: 1,
+          ownerEmail: owner,
+          start: localIso(14),
+          end: localIso(14, 45),
+          durationMinutes: 45,
+          guestName: 'Гость',
+          guestEmail: 'guest@example.com',
+        },
+      ],
+    })
+    renderOwner()
+    await screen.findByText(/Гость <guest@example\.com>/)
+
+    const meetingDay = screen.getByRole('button', { name: dayAccessibleName(new Date()) })
+    expect(meetingDay).toHaveAttribute('data-has-meeting', 'true')
+
+    const emptyDay = screen.getByRole('button', {
+      name: dayAccessibleName(anotherDayThisMonth()),
+    })
+    expect(emptyDay).not.toHaveAttribute('data-has-meeting')
   })
 })
