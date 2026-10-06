@@ -85,6 +85,17 @@ model UnprocessableEntityResponse is Response<422> {
   @body body: ValidationError;
 }
 
+/** The referenced resource does not exist. */
+model NotFoundError {
+  /** Human-readable summary. */
+  message: string;
+}
+
+/** 404 — the referenced resource does not exist. */
+model NotFoundResponse is Response<404> {
+  @body body: NotFoundError;
+}
+
 /** Create an event type for the owner. */
 @route("/owners/{ownerEmail}/event-types")
 @post
@@ -97,3 +108,15 @@ op createEventType(
 @route("/owners/{ownerEmail}/event-types")
 @get
 op listEventTypes(@path ownerEmail: string): EventType[];
+
+/**
+ * Free slot start times for this event type, UTC ISO 8601, on the 30-minute
+ * grid (`:00`/`:30`), bounded to the booking window and excluding the
+ * owner's booked intervals.
+ */
+@route("/owners/{ownerEmail}/event-types/{id}/slots")
+@get
+op listSlots(
+  @path ownerEmail: string,
+  @path id: int32,
+): utcDateTime[] | NotFoundResponse;

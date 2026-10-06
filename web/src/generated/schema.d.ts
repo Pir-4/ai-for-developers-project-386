@@ -43,6 +43,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/owners/{ownerEmail}/event-types/{id}/slots": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * @description Free slot start times for this event type, UTC ISO 8601, on the 30-minute
+         *     grid (`:00`/`:30`), bounded to the booking window and excluding the
+         *     owner's booked intervals.
+         */
+        get: operations["listSlots"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -92,6 +113,11 @@ export interface components {
              * @enum {string}
              */
             status: "ok";
+        };
+        /** @description The referenced resource does not exist. */
+        NotFoundError: {
+            /** @description Human-readable summary. */
+            message: string;
         };
         /** @description The request failed validation. */
         ValidationError: {
@@ -182,6 +208,38 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ValidationError"];
+                };
+            };
+        };
+    };
+    listSlots: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                ownerEmail: string;
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The request has succeeded. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": string[];
+                };
+            };
+            /** @description 404 — the referenced resource does not exist. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotFoundError"];
                 };
             };
         };

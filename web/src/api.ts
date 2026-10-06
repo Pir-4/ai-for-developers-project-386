@@ -46,3 +46,13 @@ export function createEventType(
     body: JSON.stringify(body),
   })
 }
+
+/** Free slot start times (UTC ISO 8601) for the event type's booking window. */
+export function listSlots(
+  ownerEmail: string,
+  eventTypeId: number,
+): Promise<string[]> {
+  return requestJson(
+    `${eventTypesUrl(ownerEmail)}/${eventTypeId}/slots`,
+  )
+}
