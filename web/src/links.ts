@@ -1,6 +1,8 @@
 // All navigation targets of the app in one place.
 // Client routes (react-router): /, /login, /owner/:email, /book/:email/:id.
 
+export const homeHref = '/'
+
 // Landing anchors are addressed as /#id — they work from any page, not just the landing.
 export const howHref = '/#how'
 export const audiencesHref = '/#audiences'
