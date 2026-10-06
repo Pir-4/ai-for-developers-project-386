@@ -3,9 +3,7 @@ import { useNavigate } from 'react-router'
 import { Button, Container, Stack, Text, TextInput, Title } from '@mantine/core'
 import { useAppText } from '../i18n.tsx'
 import { ownerHref } from '../links.ts'
-
-// "The last used email" of the owner — prefilled on the next visit.
-const EMAIL_KEY = 'owner.email'
+import { readRememberedOwnerEmail, rememberOwnerEmail } from '../ownerSession.ts'
 
 // Pragmatic "looks like an email" check, not stricter than the server's.
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
@@ -13,13 +11,7 @@ const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 export function LoginPage() {
   const t = useAppText().login
   const navigate = useNavigate()
-  const [email, setEmail] = useState(() => {
-    try {
-      return window.localStorage.getItem(EMAIL_KEY) ?? ''
-    } catch {
-      return ''
-    }
-  })
+  const [email, setEmail] = useState(() => readRememberedOwnerEmail() ?? '')
   const [error, setError] = useState('')
 
   function submit(event: FormEvent<HTMLFormElement>) {
@@ -31,11 +23,7 @@ export function LoginPage() {
     }
 
     setError('')
-    try {
-      window.localStorage.setItem(EMAIL_KEY, value)
-    } catch {
-      // persistence is best-effort
-    }
+    rememberOwnerEmail(value)
     navigate(ownerHref(value))
   }
 

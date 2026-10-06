@@ -6,6 +6,7 @@ export type LandingText = {
   logo: string
   nav: { how: string; owners: string }
   createMeeting: string
+  myMeetings: string
   hero: { title: string; subtitle: string }
   how: { heading: string; steps: BlockCopy[] }
   audiences: { heading: string; cards: BlockCopy[] }
@@ -24,6 +25,7 @@ export const landingCopy: Record<Locale, LandingText> = {
       owners: 'Для кого',
     },
     createMeeting: 'Создать встречу',
+    myMeetings: 'Мои встречи',
     hero: {
       title: 'Запись на звонок за 30 секунд',
       subtitle:
@@ -93,6 +95,7 @@ export const landingCopy: Record<Locale, LandingText> = {
       owners: 'Who it is for',
     },
     createMeeting: 'Create a meeting',
+    myMeetings: 'My meetings',
     hero: {
       title: 'Book a call in 30 seconds',
       subtitle:

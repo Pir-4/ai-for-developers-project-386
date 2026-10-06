@@ -1,17 +1,18 @@
 import { MantineProvider } from '@mantine/core'
-import { render, screen } from '@testing-library/react'
+import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import App from '../src/App.tsx'
 import { appCopy } from '../src/content/app.ts'
 import { LocaleProvider } from '../src/i18n.tsx'
 import { guestHref } from '../src/links.ts'
-import type { EventType } from '../src/api.ts'
+import type { EventType, Meeting } from '../src/api.ts'
 
 const ru = appCopy.ru
 
 const ownerEmail = 'owner@example.com'
 const apiUrl = `/api/owners/${encodeURIComponent(ownerEmail)}/event-types`
+const meetingsUrl = `/api/owners/${encodeURIComponent(ownerEmail)}/meetings`
 
 function json(status: number, body: unknown): Response {
   return new Response(JSON.stringify(body), {
@@ -37,6 +38,8 @@ const created: EventType = {
 }
 
 // Стаб fetch: маршруты (method + url) → Response; прочее — ошибка теста.
+// Список встреч по умолчанию — пустой (своя страница в стеке, не предмет
+// большинства тестов здесь); переопределяется явным роутом на meetingsUrl.
 function stubFetch(
   routes: { method?: string; url?: string; respond: () => Response }[],
 ) {
@@ -48,10 +51,9 @@ function stubFetch(
         (candidate.method ?? 'GET') === method &&
         (candidate.url ?? apiUrl) === url,
     )
-    if (!route) {
-      throw new Error(`нет стаба для ${method} ${url}`)
-    }
-    return route.respond()
+    if (route) return route.respond()
+    if (method === 'GET' && url === meetingsUrl) return json(200, [])
+    throw new Error(`нет стаба для ${method} ${url}`)
   })
   vi.stubGlobal('fetch', mock)
   return mock
@@ -84,6 +86,66 @@ beforeEach(() => {
 
 afterEach(() => {
   vi.unstubAllGlobals()
+})
+
+describe('зона владельца: ближайшие встречи', () => {
+  const meeting: Meeting = {
+    id: 1,
+    eventTypeId: existing.id,
+    eventTypeName: existing.name,
+    ownerEmail,
+    start: new Date(Date.UTC(2024, 5, 15, 7, 0)).toISOString(),
+    end: new Date(Date.UTC(2024, 5, 15, 7, 30)).toISOString(),
+    guestName: 'Гость',
+    guestEmail: 'guest@example.com',
+  }
+
+  it('показывает встречу из гостевого флоу: тип, время и гостя', async () => {
+    stubFetch([
+      { respond: () => json(200, [existing]) },
+      { url: meetingsUrl, respond: () => json(200, [meeting]) },
+    ])
+    renderOwnerPage()
+
+    const section = screen
+      .getByRole('heading', { level: 2, name: ru.owner.meetingsTitle })
+      .closest('section')!
+
+    expect(
+      await within(section).findByRole('heading', {
+        level: 3,
+        name: existing.name,
+      }),
+    ).toBeInTheDocument()
+    // TZ фиксирован на Europe/Moscow в vitest.config.ts: 07:00 UTC → 10:00 местного.
+    expect(within(section).getByText(/2024-06-15 10:00/)).toBeInTheDocument()
+    expect(within(section).getByText('30 мин')).toBeInTheDocument()
+    expect(
+      within(section).getByText(
+        `${ru.owner.guestLabel}: Гость <guest@example.com>`,
+      ),
+    ).toBeInTheDocument()
+  })
+
+  it('пустой список встреч — подсказка', async () => {
+    stubFetch([{ respond: () => json(200, []) }])
+    renderOwnerPage()
+    expect(await screen.findByText(ru.owner.meetingsEmpty)).toBeInTheDocument()
+  })
+
+  it('ошибка загрузки встреч — сообщение', async () => {
+    stubFetch([
+      { respond: () => json(200, []) },
+      {
+        url: meetingsUrl,
+        respond: () => new Response('boom', { status: 500 }),
+      },
+    ])
+    renderOwnerPage()
+    expect(
+      await screen.findByText(ru.owner.meetingsLoadError),
+    ).toBeInTheDocument()
+  })
 })
 
 describe('зона владельца: список типов встреч', () => {

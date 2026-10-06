@@ -12,6 +12,7 @@ import {
   type EventType,
 } from '../api.ts'
 import { useAppText } from '../i18n.tsx'
+import { formatLocalDateTime, formatLocalTime, localTimezone, toDateString } from '../localTime.ts'
 
 // Pragmatic "looks like an email" check — same rule as the login page.
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
@@ -25,14 +26,6 @@ const slotGridStyle = {
   gridTemplateColumns: 'repeat(auto-fill, minmax(80px, 1fr))',
 } as const
 
-// 'YYYY-MM-DD' in the viewer's local calendar, matching Mantine's DatePicker value format.
-function toDateString(date: Date): string {
-  const year = date.getFullYear()
-  const month = String(date.getMonth() + 1).padStart(2, '0')
-  const day = String(date.getDate()).padStart(2, '0')
-  return `${year}-${month}-${day}`
-}
-
 function startOfToday(): Date {
   const date = new Date()
   date.setHours(0, 0, 0, 0)
@@ -43,19 +36,6 @@ function addDays(date: Date, days: number): Date {
   const result = new Date(date)
   result.setDate(result.getDate() + days)
   return result
-}
-
-// HH:mm in the viewer's local time — the slot grid is always :00/:30.
-function formatLocalTime(iso: string): string {
-  const date = new Date(iso)
-  const hours = String(date.getHours()).padStart(2, '0')
-  const minutes = String(date.getMinutes()).padStart(2, '0')
-  return `${hours}:${minutes}`
-}
-
-// 'YYYY-MM-DD HH:mm' in the viewer's local time, for the confirmation screen.
-function formatLocalDateTime(iso: string): string {
-  return `${toDateString(new Date(iso))} ${formatLocalTime(iso)}`
 }
 
 type BookingFieldErrors = Partial<Record<'name' | 'email' | 'form', string>>
@@ -100,10 +80,7 @@ export function GuestPage() {
   const [selectedDate, setSelectedDate] = useState(() => toDateString(today))
   const [selectedStart, setSelectedStart] = useState<string | null>(null)
 
-  const timezone = useMemo(
-    () => Intl.DateTimeFormat().resolvedOptions().timeZone,
-    [],
-  )
+  const timezone = useMemo(() => localTimezone(), [])
 
   useEffect(() => {
     let cancelled = false

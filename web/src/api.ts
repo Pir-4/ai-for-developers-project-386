@@ -5,6 +5,7 @@ export type CreateEventTypeBody = components['schemas']['CreateEventTypeBody']
 export type ValidationError = components['schemas']['ValidationError']
 export type Booking = components['schemas']['Booking']
 export type CreateBookingBody = components['schemas']['CreateBookingBody']
+export type Meeting = components['schemas']['Meeting']
 
 /** 422 from the API — carries per-field errors (path + message). */
 export class ApiValidationError extends Error {
@@ -82,4 +83,11 @@ export function createBooking(
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
   })
+}
+
+/** The owner's upcoming meetings (end >= now), ordered by start ascending. */
+export function listMeetings(ownerEmail: string): Promise<Meeting[]> {
+  return requestJson(
+    `/api/owners/${encodeURIComponent(ownerEmail)}/meetings`,
+  )
 }
