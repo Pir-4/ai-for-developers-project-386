@@ -30,6 +30,7 @@ import { guestHref } from '../links.ts'
 import {
   formatLocalDateTime,
   formatLocalTime,
+  localDateOf,
   localTimezone,
   quarterHourOptions,
   toDateString,
@@ -120,6 +121,14 @@ export function OwnerPage() {
     for (const day of availability) map.set(day.date, day)
     return map
   }, [availability])
+
+  // Binned by the owner's own local date — this page is the owner's, so the
+  // viewer's local calendar (see localDateOf) is the owner's local calendar.
+  const meetingDates = useMemo(() => {
+    const set = new Set<string>()
+    for (const meeting of meetings) set.add(localDateOf(meeting.start))
+    return set
+  }, [meetings])
 
   // Switching days loads that day's stored hours into the editor.
   useEffect(() => {
@@ -214,10 +223,24 @@ export function OwnerPage() {
                   }}
                   minDate={today}
                   maxDate={addDays(today, BOOKING_WINDOW_DAYS)}
-                  getDayProps={(date) => ({
-                    'data-open': byDate.has(date) ? 'true' : undefined,
-                    style: byDate.has(date) ? { fontWeight: 700 } : undefined,
-                  })}
+                  getDayProps={(date) => {
+                    const hasAvailability = byDate.has(date)
+                    const hasMeeting = meetingDates.has(date)
+                    return {
+                      'data-open': hasAvailability ? 'true' : undefined,
+                      'data-has-meeting': hasMeeting ? 'true' : undefined,
+                      style: {
+                        ...(hasAvailability ? { fontWeight: 700 } : undefined),
+                        ...(hasMeeting
+                          ? {
+                              textDecoration: 'underline',
+                              textDecorationColor: 'var(--mantine-color-blue-6)',
+                              textDecorationThickness: 2,
+                            }
+                          : undefined),
+                      },
+                    }
+                  }}
                 />
                 <Text c="dimmed" size="xs">
                   {`${t.timezoneLabel}: ${timezone}`}

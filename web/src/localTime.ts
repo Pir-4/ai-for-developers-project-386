@@ -26,9 +26,10 @@ export function localTimezone(): string {
   return Intl.DateTimeFormat().resolvedOptions().timeZone
 }
 
-// 'YYYY-MM-DD' of an instant, in the viewer's local calendar. This is what bins
-// the flat slot list into the calendar's day cells — the guest's own dates, not
-// the owner's and not UTC (see issue #39).
+// 'YYYY-MM-DD' of an instant, in the viewer's local calendar — not UTC (see
+// issue #39). Bins GuestPage's flat slot list into its day cells, and
+// OwnerPage's meetings into calendar days; on OwnerPage the viewer is the
+// owner, so this is the owner's own local date there.
 export function localDateOf(iso: string): string {
   return toDateString(new Date(iso))
 }
