@@ -28,42 +28,11 @@ model HealthStatus {
 @route("/health")
 op health(): HealthStatus;
 
-/** A kind of bookable meeting defined by an owner: name, description and duration. */
-model EventType {
-  /** Server-assigned identifier. */
-  id: int32;
-  /** Email of the owner this event type belongs to. */
-  ownerEmail: string;
-  /** Short display name shown to the owner and the guest. */
-  name: string;
-  /** What the meeting is about, shown to the guest. */
-  description: string;
-  /** Meeting length in minutes. */
-  duration: int32;
-}
-
-/** Body for creating an event type. */
-model CreateEventTypeBody {
-  /** Short display name shown to the owner and the guest. */
-  @minLength(1)
-  @maxLength(100)
-  name: string;
-  /** What the meeting is about, shown to the guest. */
-  @minLength(1)
-  @maxLength(500)
-  description: string;
-  /** Meeting length in minutes: a multiple of 15, from 15 to 240. */
-  @multipleOf(15)
-  @minValue(15)
-  @maxValue(240)
-  duration: int32;
-}
-
 /** One failed validation constraint of a request. */
 model FieldError {
-  /** Path to the offending property, e.g. `"duration"`. */
+  /** Path to the offending property, e.g. `"intervals/0/end"`. */
   path: string;
-  /** What is wrong with it, e.g. `"must be multiple of 15"`. */
+  /** What is wrong with it, e.g. `"must be after start"`. */
   message: string;
 }
 
@@ -73,11 +42,6 @@ model ValidationError {
   message: string;
   /** One entry per failed constraint. */
   errors: FieldError[];
-}
-
-/** 201 — the created event type. */
-model CreatedEventTypeResponse is Response<201> {
-  @body body: EventType;
 }
 
 /** 422 — the request failed validation. */
@@ -96,29 +60,144 @@ model NotFoundResponse is Response<404> {
   @body body: NotFoundError;
 }
 
-/** The requested interval is already booked. */
-model ConflictError {
+/**
+ * One continuous stretch of an owner's availability, as UTC instants.
+ *
+ * The owner's browser converts the hours it displays into UTC; the server stores
+ * what it receives verbatim and performs no timezone expansion. See
+ * `docs/research/local-time-to-utc.md`.
+ */
+model Interval {
+  /** Start of the stretch, UTC ISO 8601. */
+  start: utcDateTime;
+  /** End of the stretch, UTC ISO 8601; strictly after `start`. */
+  end: utcDateTime;
+}
+
+/** The intervals an owner has declared for one date. An empty list closes the day. */
+model DayAvailability {
+  /**
+   * The owner's local calendar date the intervals were entered against, `YYYY-MM-DD`.
+   * The server treats it as an opaque grouping key and derives nothing from it.
+   */
+  date: plainDate;
+  /** The declared intervals, ordered by start. */
+  intervals: Interval[];
+}
+
+/** Body for replacing one date's availability. */
+model SetAvailabilityBody {
+  /** The full interval set for the date; an empty list closes the day. */
+  intervals: Interval[];
+}
+
+/** One of the owner's meetings that blocks an availability change. */
+model BlockingMeeting {
+  /** Start of the meeting, UTC ISO 8601. */
+  start: utcDateTime;
+  /** End of the meeting, UTC ISO 8601. */
+  end: utcDateTime;
+  /** The guest's name, so the owner can tell which commitment holds the day. */
+  guestName: string;
+}
+
+/** Availability may not be withdrawn from under an existing booking. */
+model AvailabilityConflictError {
   /** Human-readable summary. */
   message: string;
+  /** The meetings the new interval set would no longer cover. */
+  meetings: BlockingMeeting[];
 }
 
-/** 409 — the requested interval overlaps an existing booking of the owner. */
-model ConflictResponse is Response<409> {
-  @body body: ConflictError;
+/** 409 — the new interval set would uncover an existing booking. */
+model AvailabilityConflictResponse is Response<409> {
+  @body body: AvailabilityConflictError;
 }
 
-/** A reservation of a slot for an event type, holding the guest's name and email. */
+/** 200 — the stored availability for the date. */
+model DayAvailabilityResponse is Response<200> {
+  @body body: DayAvailability;
+}
+
+/** Replace the owner's availability for one date. */
+@route("/owners/{ownerEmail}/availability/{date}")
+@put
+op setAvailability(
+  @path ownerEmail: string,
+  @path date: plainDate,
+  @body body: SetAvailabilityBody,
+):
+  | DayAvailabilityResponse
+  | UnprocessableEntityResponse
+  | AvailabilityConflictResponse;
+
+/** List the owner's availability for the booking window, oldest date first. */
+@route("/owners/{ownerEmail}/availability")
+@get
+op listAvailability(@path ownerEmail: string): DayAvailability[];
+
+/**
+ * Meeting length in minutes — the fixed set a guest may choose from.
+ *
+ * An enum rather than `@multipleOf`/`@minValue`/`@maxValue`: those do not reach
+ * a query parameter's schema in the emitted OpenAPI, so 20 would slip past
+ * request validation.
+ */
+enum MeetingDuration {
+  quarterHour: 15,
+  halfHour: 30,
+  threeQuarters: 45,
+}
+
+/** Whether a slot can still be booked. */
+union SlotStatus {
+  /** Nothing of the owner's overlaps it. */
+  free: "free",
+
+  /** It intersects one of the owner's bookings. */
+  busy: "busy",
+}
+
+/** One rung of the slot ladder: a candidate meeting of the requested duration. */
+model Slot {
+  /** Start of the slot, UTC ISO 8601. */
+  start: utcDateTime;
+  /** End of the slot, UTC ISO 8601 (`start` + the requested duration). */
+  end: utcDateTime;
+  /** Whether it is still bookable. */
+  status: SlotStatus;
+}
+
+/**
+ * The owner's slot ladder for the whole booking window, ordered by start.
+ *
+ * Cells are laid end to end from the start of each availability interval, each
+ * exactly `duration` minutes long; a trailing remainder that does not fit is
+ * dropped, and cells never span two intervals. Cells that have already started
+ * are omitted entirely. The response is deliberately flat: the guest's browser
+ * groups it into the guest's own local dates.
+ */
+@route("/owners/{ownerEmail}/slots")
+@get
+op listSlots(
+  @path ownerEmail: string,
+
+  /** Meeting length in minutes. */
+  @query duration: MeetingDuration,
+): Slot[];
+
+/** A reservation of a slot, holding the guest's name and email. */
 model Booking {
   /** Server-assigned identifier. */
   id: int32;
-  /** The event type this booking is for. */
-  eventTypeId: int32;
   /** Email of the owner this booking belongs to. */
   ownerEmail: string;
   /** Start of the booked interval, UTC ISO 8601. */
   start: utcDateTime;
-  /** End of the booked interval, UTC ISO 8601 (start + the event type's duration). */
+  /** End of the booked interval, UTC ISO 8601 (`start` + `durationMinutes`). */
   end: utcDateTime;
+  /** Meeting length in minutes: 15, 30 or 45. */
+  durationMinutes: int32;
   /** The guest's name. */
   guestName: string;
   /** The guest's email. */
@@ -134,8 +213,10 @@ model CreateBookingBody {
   /** The guest's email. */
   @pattern("^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$")
   guestEmail: string;
-  /** The slot's start time, UTC ISO 8601: must fall on the :00/:30 grid, not be in the past, and lie within the booking window. */
+  /** The slot's start time, UTC ISO 8601: must be a free rung of the owner's ladder for this duration. */
   start: utcDateTime;
+  /** Meeting length in minutes. */
+  durationMinutes: MeetingDuration;
 }
 
 /** 201 — the created booking. */
@@ -143,37 +224,22 @@ model CreatedBookingResponse is Response<201> {
   @body body: Booking;
 }
 
-/** Create an event type for the owner. */
-@route("/owners/{ownerEmail}/event-types")
-@post
-op createEventType(
-  @path ownerEmail: string,
-  @body body: CreateEventTypeBody,
-): CreatedEventTypeResponse | UnprocessableEntityResponse;
+/** The requested slot is no longer free. */
+model ConflictError {
+  /** Human-readable summary. */
+  message: string;
+}
 
-/** List the owner's event types, oldest first. */
-@route("/owners/{ownerEmail}/event-types")
-@get
-op listEventTypes(@path ownerEmail: string): EventType[];
+/** 409 — the requested slot overlaps an existing booking of the owner. */
+model ConflictResponse is Response<409> {
+  @body body: ConflictError;
+}
 
-/**
- * Free slot start times for this event type, UTC ISO 8601, on the 30-minute
- * grid (`:00`/`:30`), bounded to the booking window and excluding the
- * owner's booked intervals.
- */
-@route("/owners/{ownerEmail}/event-types/{id}/slots")
-@get
-op listSlots(
-  @path ownerEmail: string,
-  @path id: int32,
-): utcDateTime[] | NotFoundResponse;
-
-/** Book a slot for the event type. */
-@route("/owners/{ownerEmail}/event-types/{id}/bookings")
+/** Book a slot on the owner's calendar. */
+@route("/owners/{ownerEmail}/bookings")
 @post
 op createBooking(
   @path ownerEmail: string,
-  @path id: int32,
   @body body: CreateBookingBody,
 ):
   | CreatedBookingResponse
@@ -181,20 +247,18 @@ op createBooking(
   | NotFoundResponse
   | ConflictResponse;
 
-/** One of the owner's meetings: a booking enriched with its event type's name. */
+/** One of the owner's meetings — the owner-facing view of a booking. */
 model Meeting {
   /** Server-assigned identifier of the booking. */
   id: int32;
-  /** The event type this meeting is for. */
-  eventTypeId: int32;
-  /** Name of the event type, shown in the row. */
-  eventTypeName: string;
   /** Email of the owner this meeting belongs to. */
   ownerEmail: string;
   /** Start of the meeting, UTC ISO 8601. */
   start: utcDateTime;
   /** End of the meeting, UTC ISO 8601. */
   end: utcDateTime;
+  /** Meeting length in minutes. */
+  durationMinutes: int32;
   /** The guest's name. */
   guestName: string;
   /** The guest's email. */

@@ -26,10 +26,10 @@
         }
       }
     },
-    "/owners/{ownerEmail}/event-types": {
-      "post": {
-        "operationId": "createEventType",
-        "description": "Create an event type for the owner.",
+    "/owners/{ownerEmail}/availability": {
+      "get": {
+        "operationId": "listAvailability",
+        "description": "List the owner's availability for the booking window, oldest date first.",
         "parameters": [
           {
             "name": "ownerEmail",
@@ -41,12 +41,62 @@
           }
         ],
         "responses": {
-          "201": {
-            "description": "201 — the created event type.",
+          "200": {
+            "description": "The request has succeeded.",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/EventType"
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/DayAvailability"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/owners/{ownerEmail}/availability/{date}": {
+      "put": {
+        "operationId": "setAvailability",
+        "description": "Replace the owner's availability for one date.",
+        "parameters": [
+          {
+            "name": "ownerEmail",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "date",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "200 — the stored availability for the date.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DayAvailability"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "409 — the new interval set would uncover an existing booking.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AvailabilityConflictError"
                 }
               }
             }
@@ -67,46 +117,17 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/CreateEventTypeBody"
-              }
-            }
-          }
-        }
-      },
-      "get": {
-        "operationId": "listEventTypes",
-        "description": "List the owner's event types, oldest first.",
-        "parameters": [
-          {
-            "name": "ownerEmail",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "The request has succeeded.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/EventType"
-                  }
-                }
+                "$ref": "#/components/schemas/SetAvailabilityBody"
               }
             }
           }
         }
       }
     },
-    "/owners/{ownerEmail}/event-types/{id}/bookings": {
+    "/owners/{ownerEmail}/bookings": {
       "post": {
         "operationId": "createBooking",
-        "description": "Book a slot for the event type.",
+        "description": "Book a slot on the owner's calendar.",
         "parameters": [
           {
             "name": "ownerEmail",
@@ -114,15 +135,6 @@
             "required": true,
             "schema": {
               "type": "string"
-            }
-          },
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "integer",
-              "format": "int32"
             }
           }
         ],
@@ -148,7 +160,7 @@
             }
           },
           "409": {
-            "description": "409 — the requested interval overlaps an existing booking of the owner.",
+            "description": "409 — the requested slot overlaps an existing booking of the owner.",
             "content": {
               "application/json": {
                 "schema": {
@@ -174,57 +186,6 @@
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/CreateBookingBody"
-              }
-            }
-          }
-        }
-      }
-    },
-    "/owners/{ownerEmail}/event-types/{id}/slots": {
-      "get": {
-        "operationId": "listSlots",
-        "description": "Free slot start times for this event type, UTC ISO 8601, on the 30-minute\ngrid (`:00`/`:30`), bounded to the booking window and excluding the\nowner's booked intervals.",
-        "parameters": [
-          {
-            "name": "ownerEmail",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "integer",
-              "format": "int32"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "The request has succeeded.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "array",
-                  "items": {
-                    "type": "string",
-                    "format": "date-time"
-                  }
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "404 — the referenced resource does not exist.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/NotFoundError"
-                }
               }
             }
           }
@@ -261,18 +222,105 @@
           }
         }
       }
+    },
+    "/owners/{ownerEmail}/slots": {
+      "get": {
+        "operationId": "listSlots",
+        "description": "The owner's slot ladder for the whole booking window, ordered by start.\n\nCells are laid end to end from the start of each availability interval, each\nexactly `duration` minutes long; a trailing remainder that does not fit is\ndropped, and cells never span two intervals. Cells that have already started\nare omitted entirely. The response is deliberately flat: the guest's browser\ngroups it into the guest's own local dates.",
+        "parameters": [
+          {
+            "name": "ownerEmail",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "duration",
+            "in": "query",
+            "required": true,
+            "description": "Meeting length in minutes.",
+            "schema": {
+              "$ref": "#/components/schemas/MeetingDuration"
+            },
+            "explode": false
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The request has succeeded.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Slot"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
     "schemas": {
+      "AvailabilityConflictError": {
+        "type": "object",
+        "required": [
+          "message",
+          "meetings"
+        ],
+        "properties": {
+          "message": {
+            "type": "string",
+            "description": "Human-readable summary."
+          },
+          "meetings": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BlockingMeeting"
+            },
+            "description": "The meetings the new interval set would no longer cover."
+          }
+        },
+        "description": "Availability may not be withdrawn from under an existing booking."
+      },
+      "BlockingMeeting": {
+        "type": "object",
+        "required": [
+          "start",
+          "end",
+          "guestName"
+        ],
+        "properties": {
+          "start": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Start of the meeting, UTC ISO 8601."
+          },
+          "end": {
+            "type": "string",
+            "format": "date-time",
+            "description": "End of the meeting, UTC ISO 8601."
+          },
+          "guestName": {
+            "type": "string",
+            "description": "The guest's name, so the owner can tell which commitment holds the day."
+          }
+        },
+        "description": "One of the owner's meetings that blocks an availability change."
+      },
       "Booking": {
         "type": "object",
         "required": [
           "id",
-          "eventTypeId",
           "ownerEmail",
           "start",
           "end",
+          "durationMinutes",
           "guestName",
           "guestEmail",
           "createdAt"
@@ -282,11 +330,6 @@
             "type": "integer",
             "format": "int32",
             "description": "Server-assigned identifier."
-          },
-          "eventTypeId": {
-            "type": "integer",
-            "format": "int32",
-            "description": "The event type this booking is for."
           },
           "ownerEmail": {
             "type": "string",
@@ -300,7 +343,12 @@
           "end": {
             "type": "string",
             "format": "date-time",
-            "description": "End of the booked interval, UTC ISO 8601 (start + the event type's duration)."
+            "description": "End of the booked interval, UTC ISO 8601 (`start` + `durationMinutes`)."
+          },
+          "durationMinutes": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Meeting length in minutes: 15, 30 or 45."
           },
           "guestName": {
             "type": "string",
@@ -316,7 +364,7 @@
             "description": "When the booking was created, UTC ISO 8601."
           }
         },
-        "description": "A reservation of a slot for an event type, holding the guest's name and email."
+        "description": "A reservation of a slot, holding the guest's name and email."
       },
       "ConflictError": {
         "type": "object",
@@ -329,14 +377,15 @@
             "description": "Human-readable summary."
           }
         },
-        "description": "The requested interval is already booked."
+        "description": "The requested slot is no longer free."
       },
       "CreateBookingBody": {
         "type": "object",
         "required": [
           "guestName",
           "guestEmail",
-          "start"
+          "start",
+          "durationMinutes"
         ],
         "properties": {
           "guestName": {
@@ -351,76 +400,40 @@
           "start": {
             "type": "string",
             "format": "date-time",
-            "description": "The slot's start time, UTC ISO 8601: must fall on the :00/:30 grid, not be in the past, and lie within the booking window."
+            "description": "The slot's start time, UTC ISO 8601: must be a free rung of the owner's ladder for this duration."
+          },
+          "durationMinutes": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/MeetingDuration"
+              }
+            ],
+            "description": "Meeting length in minutes."
           }
         },
         "description": "Body for booking a slot."
       },
-      "CreateEventTypeBody": {
+      "DayAvailability": {
         "type": "object",
         "required": [
-          "name",
-          "description",
-          "duration"
+          "date",
+          "intervals"
         ],
         "properties": {
-          "name": {
+          "date": {
             "type": "string",
-            "minLength": 1,
-            "maxLength": 100,
-            "description": "Short display name shown to the owner and the guest."
+            "format": "date",
+            "description": "The owner's local calendar date the intervals were entered against, `YYYY-MM-DD`.\nThe server treats it as an opaque grouping key and derives nothing from it."
           },
-          "description": {
-            "type": "string",
-            "minLength": 1,
-            "maxLength": 500,
-            "description": "What the meeting is about, shown to the guest."
-          },
-          "duration": {
-            "type": "integer",
-            "format": "int32",
-            "minimum": 15,
-            "maximum": 240,
-            "multipleOf": 15,
-            "description": "Meeting length in minutes: a multiple of 15, from 15 to 240."
+          "intervals": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Interval"
+            },
+            "description": "The declared intervals, ordered by start."
           }
         },
-        "description": "Body for creating an event type."
-      },
-      "EventType": {
-        "type": "object",
-        "required": [
-          "id",
-          "ownerEmail",
-          "name",
-          "description",
-          "duration"
-        ],
-        "properties": {
-          "id": {
-            "type": "integer",
-            "format": "int32",
-            "description": "Server-assigned identifier."
-          },
-          "ownerEmail": {
-            "type": "string",
-            "description": "Email of the owner this event type belongs to."
-          },
-          "name": {
-            "type": "string",
-            "description": "Short display name shown to the owner and the guest."
-          },
-          "description": {
-            "type": "string",
-            "description": "What the meeting is about, shown to the guest."
-          },
-          "duration": {
-            "type": "integer",
-            "format": "int32",
-            "description": "Meeting length in minutes."
-          }
-        },
-        "description": "A kind of bookable meeting defined by an owner: name, description and duration."
+        "description": "The intervals an owner has declared for one date. An empty list closes the day."
       },
       "FieldError": {
         "type": "object",
@@ -431,11 +444,11 @@
         "properties": {
           "path": {
             "type": "string",
-            "description": "Path to the offending property, e.g. `\"duration\"`."
+            "description": "Path to the offending property, e.g. `\"intervals/0/end\"`."
           },
           "message": {
             "type": "string",
-            "description": "What is wrong with it, e.g. `\"must be multiple of 15\"`."
+            "description": "What is wrong with it, e.g. `\"must be after start\"`."
           }
         },
         "description": "One failed validation constraint of a request."
@@ -456,15 +469,34 @@
         },
         "description": "Liveness probe response."
       },
+      "Interval": {
+        "type": "object",
+        "required": [
+          "start",
+          "end"
+        ],
+        "properties": {
+          "start": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Start of the stretch, UTC ISO 8601."
+          },
+          "end": {
+            "type": "string",
+            "format": "date-time",
+            "description": "End of the stretch, UTC ISO 8601; strictly after `start`."
+          }
+        },
+        "description": "One continuous stretch of an owner's availability, as UTC instants.\n\nThe owner's browser converts the hours it displays into UTC; the server stores\nwhat it receives verbatim and performs no timezone expansion. See\n`docs/research/local-time-to-utc.md`."
+      },
       "Meeting": {
         "type": "object",
         "required": [
           "id",
-          "eventTypeId",
-          "eventTypeName",
           "ownerEmail",
           "start",
           "end",
+          "durationMinutes",
           "guestName",
           "guestEmail"
         ],
@@ -473,15 +505,6 @@
             "type": "integer",
             "format": "int32",
             "description": "Server-assigned identifier of the booking."
-          },
-          "eventTypeId": {
-            "type": "integer",
-            "format": "int32",
-            "description": "The event type this meeting is for."
-          },
-          "eventTypeName": {
-            "type": "string",
-            "description": "Name of the event type, shown in the row."
           },
           "ownerEmail": {
             "type": "string",
@@ -497,6 +520,11 @@
             "format": "date-time",
             "description": "End of the meeting, UTC ISO 8601."
           },
+          "durationMinutes": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Meeting length in minutes."
+          },
           "guestName": {
             "type": "string",
             "description": "The guest's name."
@@ -506,7 +534,16 @@
             "description": "The guest's email."
           }
         },
-        "description": "One of the owner's meetings: a booking enriched with its event type's name."
+        "description": "One of the owner's meetings — the owner-facing view of a booking."
+      },
+      "MeetingDuration": {
+        "type": "number",
+        "enum": [
+          15,
+          30,
+          45
+        ],
+        "description": "Meeting length in minutes — the fixed set a guest may choose from.\n\nAn enum rather than `@multipleOf`/`@minValue`/`@maxValue`: those do not reach\na query parameter's schema in the emitted OpenAPI, so 20 would slip past\nrequest validation."
       },
       "NotFoundError": {
         "type": "object",
@@ -520,6 +557,59 @@
           }
         },
         "description": "The referenced resource does not exist."
+      },
+      "SetAvailabilityBody": {
+        "type": "object",
+        "required": [
+          "intervals"
+        ],
+        "properties": {
+          "intervals": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Interval"
+            },
+            "description": "The full interval set for the date; an empty list closes the day."
+          }
+        },
+        "description": "Body for replacing one date's availability."
+      },
+      "Slot": {
+        "type": "object",
+        "required": [
+          "start",
+          "end",
+          "status"
+        ],
+        "properties": {
+          "start": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Start of the slot, UTC ISO 8601."
+          },
+          "end": {
+            "type": "string",
+            "format": "date-time",
+            "description": "End of the slot, UTC ISO 8601 (`start` + the requested duration)."
+          },
+          "status": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/SlotStatus"
+              }
+            ],
+            "description": "Whether it is still bookable."
+          }
+        },
+        "description": "One rung of the slot ladder: a candidate meeting of the requested duration."
+      },
+      "SlotStatus": {
+        "type": "string",
+        "enum": [
+          "free",
+          "busy"
+        ],
+        "description": "Whether a slot can still be booked."
       },
       "ValidationError": {
         "type": "object",

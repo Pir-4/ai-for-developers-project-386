@@ -2,169 +2,107 @@ import { describe, expect, it } from "vitest";
 import { buildApp } from "../src/app.js";
 
 const owner = "owner@example.com";
+const enc = encodeURIComponent(owner);
+const availabilityUrl = (date: string) => `/api/owners/${enc}/availability/${date}`;
+const bookingsUrl = `/api/owners/${enc}/bookings`;
+const meetingsUrl = `/api/owners/${enc}/meetings`;
 
-const validEventType = {
-  name: "Знакомство",
-  description: "Первый созвон: знакомимся и обсуждаем идеи",
-  duration: 30,
-};
+const now = new Date("2024-01-10T09:47:00.000Z");
+const day = "2024-01-11";
+const iso = (time: string) => `${day}T${time}:00.000Z`;
 
-const validGuest = {
-  guestName: "Гость",
-  guestEmail: "guest@example.com",
-};
+const guest = { guestName: "Гость", guestEmail: "guest@example.com" };
 
-// "Сейчас" зафиксировано на 09:47 — ближайшая точка сетки :00/:30 впереди это 10:00.
-const bookingTime = new Date("2024-01-10T09:47:00.000Z");
-const firstSlot = "2024-01-10T10:00:00.000Z";
+const build = (clock: () => Date = () => now) =>
+  buildApp({ dbPath: ":memory:", clock });
 
-function meetingsUrl(ownerEmail = owner): string {
-  return `/api/owners/${encodeURIComponent(ownerEmail)}/meetings`;
-}
-
-function eventTypesUrlFor(ownerEmail: string): string {
-  return `/api/owners/${encodeURIComponent(ownerEmail)}/event-types`;
-}
-
-// clock, подвижный после создания приложения: нужен, чтобы забронировать
-// относительно одного "сейчас" и затем проверить список относительно другого.
-function buildAppWithClock(initial: Date) {
-  let current = initial;
-  const clock = () => current;
-  const setClock = (next: Date) => {
-    current = next;
-  };
-  return { appPromise: buildApp({ dbPath: ":memory:", clock }), setClock };
-}
-
-async function createEventType(
-  app: Awaited<ReturnType<typeof buildApp>>,
-  ownerEmail = owner,
+async function openAndBook(
+  app: Awaited<ReturnType<typeof build>>,
+  times: string[],
+  durationMinutes = 30,
 ) {
-  const res = await app.inject({
-    method: "POST",
-    url: eventTypesUrlFor(ownerEmail),
-    payload: validEventType,
+  await app.inject({
+    method: "PUT",
+    url: availabilityUrl(day),
+    payload: { intervals: [{ start: iso("09:00"), end: iso("18:00") }] },
   });
-  return res.json().id as number;
+  for (const time of times) {
+    await app.inject({
+      method: "POST",
+      url: bookingsUrl,
+      payload: { ...guest, start: iso(time), durationMinutes },
+    });
+  }
 }
 
-async function book(
-  app: Awaited<ReturnType<typeof buildApp>>,
-  eventTypeId: number,
-  start: string,
-  guest = validGuest,
-  ownerEmail = owner,
-) {
-  const res = await app.inject({
-    method: "POST",
-    url: `${eventTypesUrlFor(ownerEmail)}/${eventTypeId}/bookings`,
-    payload: { ...guest, start },
+describe("будущие встречи владельца", () => {
+  it("пусто, пока никто не записался", async () => {
+    const app = await build();
+    const response = await app.inject({ method: "GET", url: meetingsUrl });
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toEqual([]);
+    await app.close();
   });
-  return res.json();
-}
 
-describe("GET /api/owners/:ownerEmail/meetings", () => {
-  it("сценарий: бронь из гостевого флоу появляется в списке встреч владельца", async () => {
-    const { appPromise } = buildAppWithClock(bookingTime);
-    const app = await appPromise;
-    const eventTypeId = await createEventType(app);
-    const booking = await book(app, eventTypeId, firstSlot);
+  it("показывает встречу с длительностью и данными гостя", async () => {
+    const app = await build();
+    await openAndBook(app, ["11:15"], 45);
 
-    const res = await app.inject({ method: "GET", url: meetingsUrl() });
-
-    expect(res.statusCode).toBe(200);
-    expect(res.json()).toEqual([
+    const meetings = (await app.inject({ method: "GET", url: meetingsUrl })).json();
+    expect(meetings).toEqual([
       {
-        id: booking.id,
-        eventTypeId,
-        eventTypeName: validEventType.name,
+        id: expect.any(Number),
         ownerEmail: owner,
-        start: booking.start,
-        end: booking.end,
-        guestName: validGuest.guestName,
-        guestEmail: validGuest.guestEmail,
+        start: iso("11:15"),
+        end: iso("12:00"),
+        durationMinutes: 45,
+        guestName: "Гость",
+        guestEmail: "guest@example.com",
       },
     ]);
-
     await app.close();
   });
 
-  it("включает идущую сейчас встречу (start в прошлом, end ещё не наступил)", async () => {
-    const { appPromise, setClock } = buildAppWithClock(bookingTime);
-    const app = await appPromise;
-    const eventTypeId = await createEventType(app);
-    await book(app, eventTypeId, firstSlot); // [10:00, 10:30)
+  it("сортирует по началу, а не по порядку создания", async () => {
+    const app = await build();
+    await openAndBook(app, ["15:00", "10:00", "12:00"]);
 
-    setClock(new Date("2024-01-10T10:15:00.000Z")); // встреча идёт прямо сейчас
-    const res = await app.inject({ method: "GET", url: meetingsUrl() });
-
-    expect(res.statusCode).toBe(200);
-    expect(res.json()).toHaveLength(1);
-    expect(res.json()[0].end).toBe("2024-01-10T10:30:00.000Z");
-
-    await app.close();
-  });
-
-  it("не включает завершившуюся встречу", async () => {
-    const { appPromise, setClock } = buildAppWithClock(bookingTime);
-    const app = await appPromise;
-    const eventTypeId = await createEventType(app);
-    await book(app, eventTypeId, firstSlot); // ends 10:30
-
-    setClock(new Date("2024-01-10T11:00:00.000Z")); // встреча уже закончилась
-    const res = await app.inject({ method: "GET", url: meetingsUrl() });
-
-    expect(res.json()).toEqual([]);
-
-    await app.close();
-  });
-
-  it("сортирует по возрастанию start", async () => {
-    const { appPromise } = buildAppWithClock(bookingTime);
-    const app = await appPromise;
-    const eventTypeId = await createEventType(app);
-    const later = await book(app, eventTypeId, "2024-01-10T12:00:00.000Z");
-    const earlier = await book(app, eventTypeId, firstSlot);
-
-    const res = await app.inject({ method: "GET", url: meetingsUrl() });
-
-    expect(res.json().map((m: { id: number }) => m.id)).toEqual([
-      earlier.id,
-      later.id,
+    const meetings = (await app.inject({ method: "GET", url: meetingsUrl })).json();
+    expect(meetings.map((m: { start: string }) => m.start.slice(11, 16))).toEqual([
+      "10:00",
+      "12:00",
+      "15:00",
     ]);
-
     await app.close();
   });
 
-  it("отдаёт только встречи этого владельца", async () => {
-    const { appPromise } = buildAppWithClock(bookingTime);
-    const app = await appPromise;
-    const eventTypeId = await createEventType(app);
-    await book(app, eventTypeId, firstSlot);
+  it("завершившиеся встречи уходят из списка", async () => {
+    // База переживает смену «сейчас»: бронируем при одних часах, читаем при других.
+    const db = (await import("../src/db/index.js")).openDatabase(":memory:");
+    const booking = await buildApp({ db, clock: () => now });
+    await openAndBook(booking, ["10:00", "16:00"]);
+    // Закрывать нельзя — закрытие уронит общую базу; просто берём новый app.
 
-    const otherOwner = "other@example.com";
-    const otherEventTypeId = await createEventType(app, otherOwner);
-    await book(app, otherEventTypeId, firstSlot, validGuest, otherOwner);
-
-    const res = await app.inject({ method: "GET", url: meetingsUrl() });
-
-    expect(res.json()).toHaveLength(1);
-    expect(res.json()[0].ownerEmail).toBe(owner);
-
-    await app.close();
+    const later = await buildApp({
+      db,
+      clock: () => new Date(`${day}T12:00:00.000Z`),
+    });
+    const meetings = (await later.inject({ method: "GET", url: meetingsUrl })).json();
+    expect(meetings.map((m: { start: string }) => m.start.slice(11, 16))).toEqual([
+      "16:00",
+    ]);
+    await later.close();
   });
 
-  it("пустой список для владельца без встреч", async () => {
-    const { appPromise } = buildAppWithClock(bookingTime);
-    const app = await appPromise;
-    await createEventType(app);
+  it("встречи одного владельца не видны другому", async () => {
+    const app = await build();
+    await openAndBook(app, ["11:00"]);
 
-    const res = await app.inject({ method: "GET", url: meetingsUrl() });
-
-    expect(res.statusCode).toBe(200);
-    expect(res.json()).toEqual([]);
-
+    const other = await app.inject({
+      method: "GET",
+      url: `/api/owners/${encodeURIComponent("other@example.com")}/meetings`,
+    });
+    expect(other.json()).toEqual([]);
     await app.close();
   });
 });
