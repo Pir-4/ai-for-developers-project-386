@@ -1,86 +1,100 @@
-import { useEffect, useState, type FormEvent } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useParams } from 'react-router'
 import {
+  ActionIcon,
   Box,
   Button,
   Card,
   Container,
   CopyButton,
-  NumberInput,
+  SimpleGrid,
+  Group,
+  Select,
   Stack,
   Text,
-  Textarea,
-  TextInput,
   Title,
 } from '@mantine/core'
+import { DatePicker } from '@mantine/dates'
 import {
+  ApiAvailabilityConflictError,
   ApiValidationError,
-  createEventType,
-  listEventTypes,
+  listAvailability,
   listMeetings,
-  type CreateEventTypeBody,
-  type EventType,
+  setAvailability,
+  type BlockingMeeting,
+  type DayAvailability,
   type Meeting,
 } from '../api.ts'
 import { useAppText } from '../i18n.tsx'
 import { guestHref } from '../links.ts'
-import { formatLocalDateTime, localTimezone } from '../localTime.ts'
+import {
+  formatLocalDateTime,
+  formatLocalTime,
+  localTimezone,
+  quarterHourOptions,
+  toDateString,
+  toUtcInstant,
+} from '../localTime.ts'
 
-type FieldName = 'name' | 'description' | 'duration'
-type FieldErrors = Partial<Record<FieldName | 'form', string>>
+const BOOKING_WINDOW_DAYS = 14
 
-// Limits mirror the contract (contract/main.tsp, CreateEventTypeBody).
-const NAME_MAX = 100
-const DESCRIPTION_MAX = 500
-const DURATION_MIN = 15
-const DURATION_MAX = 240
-const DURATION_STEP = 15
-const DURATION_DEFAULT = 30
+type Draft = { from: string; to: string }
 
-function durationMinutes(start: string, end: string): number {
-  return Math.round((Date.parse(end) - Date.parse(start)) / 60000)
+function startOfToday(): Date {
+  const date = new Date()
+  date.setHours(0, 0, 0, 0)
+  return date
 }
 
-/** duration из NumberInput либо валидно, либо null (правила — как в контракте). */
-function parseDuration(value: number | string): number | null {
-  const parsed = typeof value === 'number' ? value : Number(value)
-  if (
-    !Number.isInteger(parsed) ||
-    parsed < DURATION_MIN ||
-    parsed > DURATION_MAX ||
-    parsed % DURATION_STEP !== 0
-  ) {
-    return null
-  }
-  return parsed
+function addDays(date: Date, days: number): Date {
+  const result = new Date(date)
+  result.setDate(result.getDate() + days)
+  return result
 }
 
+function draftsOverlap(drafts: Draft[]): boolean {
+  const sorted = [...drafts].sort((a, b) => a.from.localeCompare(b.from))
+  return sorted.some(
+    (draft, index) => index > 0 && draft.from < sorted[index - 1]!.to,
+  )
+}
+
+/**
+ * Owner area (/owner/:email): the calendar they fill in, the link they share,
+ * and the meetings that came of it — one page, so narrowing a day and seeing
+ * what already sits in it never needs a navigation.
+ */
 export function OwnerPage() {
   const { email = '' } = useParams()
   const ownerEmail = decodeURIComponent(email)
   const t = useAppText().owner
   const errorsText = useAppText().errors
+  const shared = useAppText().shared
 
-  const [items, setItems] = useState<EventType[]>([])
-  const [listFailed, setListFailed] = useState(false)
-
+  const [availability, setAvailabilityState] = useState<DayAvailability[]>([])
+  const [loadFailed, setLoadFailed] = useState(false)
   const [meetings, setMeetings] = useState<Meeting[]>([])
   const [meetingsFailed, setMeetingsFailed] = useState(false)
 
-  const [name, setName] = useState('')
-  const [description, setDescription] = useState('')
-  const [duration, setDuration] = useState<number | string>(DURATION_DEFAULT)
-  const [fieldErrors, setFieldErrors] = useState<FieldErrors>({})
+  const today = useMemo(() => startOfToday(), [])
+  const [selectedDate, setSelectedDate] = useState(() => toDateString(today))
+  const [drafts, setDrafts] = useState<Draft[]>([])
   const [saving, setSaving] = useState(false)
+  const [savedAt, setSavedAt] = useState<string | null>(null)
+  const [formError, setFormError] = useState<string | null>(null)
+  const [blocking, setBlocking] = useState<BlockingMeeting[]>([])
+
+  const timezone = useMemo(() => localTimezone(), [])
+  const options = useMemo(() => quarterHourOptions(), [])
 
   useEffect(() => {
     let cancelled = false
-    listEventTypes(ownerEmail)
+    listAvailability(ownerEmail)
       .then((loaded) => {
-        if (!cancelled) setItems(loaded)
+        if (!cancelled) setAvailabilityState(loaded)
       })
       .catch(() => {
-        if (!cancelled) setListFailed(true)
+        if (!cancelled) setLoadFailed(true)
       })
     return () => {
       cancelled = true
@@ -101,61 +115,211 @@ export function OwnerPage() {
     }
   }, [ownerEmail])
 
-  function validate(): { errors: FieldErrors; body: CreateEventTypeBody | null } {
-    const parsedDuration = parseDuration(duration)
-    const errors: FieldErrors = {}
-    if (name.length < 1) errors.name = t.nameRequired
-    else if (name.length > NAME_MAX) errors.name = t.nameTooLong
-    if (description.length < 1) errors.description = t.descriptionRequired
-    else if (description.length > DESCRIPTION_MAX)
-      errors.description = t.descriptionTooLong
-    if (parsedDuration === null) errors.duration = t.durationInvalid
+  const byDate = useMemo(() => {
+    const map = new Map<string, DayAvailability>()
+    for (const day of availability) map.set(day.date, day)
+    return map
+  }, [availability])
 
-    const body =
-      parsedDuration === null || Object.keys(errors).length > 0
-        ? null
-        : { name, description, duration: parsedDuration }
-    return { errors, body }
+  // Switching days loads that day's stored hours into the editor.
+  useEffect(() => {
+    const day = byDate.get(selectedDate)
+    setDrafts(
+      (day?.intervals ?? []).map((interval) => ({
+        from: formatLocalTime(interval.start),
+        to: formatLocalTime(interval.end),
+      })),
+    )
+    setFormError(null)
+    setBlocking([])
+    // savedAt is deliberately not cleared here: a successful save changes
+    // `byDate`, which re-runs this effect, and clearing would wipe the
+    // confirmation the owner just earned. Switching days clears it instead.
+  }, [selectedDate, byDate])
+
+  function updateDraft(index: number, patch: Partial<Draft>) {
+    setDrafts((previous) =>
+      previous.map((draft, i) => (i === index ? { ...draft, ...patch } : draft)),
+    )
+    setSavedAt(null)
   }
 
-  async function submit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault()
-    const { errors, body } = validate()
-    setFieldErrors(errors)
-    if (body === null) return
+  async function save() {
+    setFormError(null)
+    setBlocking([])
+
+    if (drafts.some((draft) => !(draft.from < draft.to))) {
+      setFormError(t.intervalInvalid)
+      return
+    }
+    if (draftsOverlap(drafts)) {
+      setFormError(t.intervalsOverlap)
+      return
+    }
 
     setSaving(true)
     try {
-      const created = await createEventType(ownerEmail, body)
-      setItems((previous) => [...previous, created])
-      setName('')
-      setDescription('')
-      setDuration(DURATION_DEFAULT)
-      setFieldErrors({})
+      const saved = await setAvailability(
+        ownerEmail,
+        selectedDate,
+        drafts.map((draft) => ({
+          start: toUtcInstant(selectedDate, draft.from),
+          end: toUtcInstant(selectedDate, draft.to),
+        })),
+      )
+      setAvailabilityState((previous) => [
+        ...previous.filter((day) => day.date !== saved.date),
+        ...(saved.intervals.length > 0 ? [saved] : []),
+      ])
+      setSavedAt(selectedDate)
     } catch (err) {
-      if (err instanceof ApiValidationError) {
-        const serverErrors: FieldErrors = {}
-        for (const issue of err.errors) {
-          const field = issue.path as FieldName
-          if (field === 'name' || field === 'description' || field === 'duration') {
-            if (!(field in serverErrors)) serverErrors[field] = issue.message
-          } else if (serverErrors.form === undefined) {
-            serverErrors.form = issue.message
-          }
-        }
-        setFieldErrors(serverErrors)
+      if (err instanceof ApiAvailabilityConflictError) {
+        setBlocking(err.meetings)
+        setFormError(t.conflictTitle)
+      } else if (err instanceof ApiValidationError) {
+        setFormError(err.errors[0]?.message ?? t.saveError)
       } else {
-        setFieldErrors({ form: errorsText.network })
+        setFormError(errorsText.network)
       }
     } finally {
       setSaving(false)
     }
   }
 
+  const guestUrl = `${window.location.origin}${guestHref(ownerEmail)}`
+
   return (
-    <Container size="sm" py="xl">
+    <Container size="lg" py="xl">
       <Stack gap="xl">
         <Title order={1}>{t.title}</Title>
+
+        <SimpleGrid cols={{ base: 1, md: 2 }} spacing="lg">
+            <Card component="section" withBorder p="lg">
+              <Stack gap="xs">
+                <Title order={2}>{t.calendarTitle}</Title>
+                <Text c="dimmed" size="sm">
+                  {t.calendarHint}
+                </Text>
+                {loadFailed && (
+                  <Text c="dimmed" size="sm">
+                    {t.loadError}
+                  </Text>
+                )}
+                <DatePicker
+                  value={selectedDate}
+                  onChange={(value) => {
+                    if (!value) return
+                    setSelectedDate(value)
+                    setSavedAt(null)
+                  }}
+                  minDate={today}
+                  maxDate={addDays(today, BOOKING_WINDOW_DAYS)}
+                  getDayProps={(date) => ({
+                    'data-open': byDate.has(date) ? 'true' : undefined,
+                    style: byDate.has(date) ? { fontWeight: 700 } : undefined,
+                  })}
+                />
+                <Text c="dimmed" size="xs">
+                  {`${t.timezoneLabel}: ${timezone}`}
+                </Text>
+              </Stack>
+            </Card>
+
+            <Card component="section" withBorder p="lg">
+              <Stack gap="md">
+                <Title order={2}>{`${t.dayTitle}: ${selectedDate}`}</Title>
+
+                {drafts.length === 0 && (
+                  <Text c="dimmed" size="sm">
+                    {t.dayClosed}
+                  </Text>
+                )}
+
+                {drafts.map((draft, index) => (
+                  <Group key={index} gap="xs" wrap="nowrap" align="flex-end">
+                    <Select
+                      label={t.fromLabel}
+                      data={options}
+                      value={draft.from}
+                      allowDeselect={false}
+                      onChange={(value) => value && updateDraft(index, { from: value })}
+                    />
+                    <Select
+                      label={t.toLabel}
+                      data={options}
+                      value={draft.to}
+                      allowDeselect={false}
+                      onChange={(value) => value && updateDraft(index, { to: value })}
+                    />
+                    <ActionIcon
+                      variant="default"
+                      size="lg"
+                      aria-label={t.removeInterval}
+                      onClick={() =>
+                        setDrafts((previous) => previous.filter((_, i) => i !== index))
+                      }
+                    >
+                      ×
+                    </ActionIcon>
+                  </Group>
+                ))}
+
+                <Group gap="xs">
+                  <Button
+                    variant="default"
+                    onClick={() =>
+                      setDrafts((previous) => [...previous, { from: '11:00', to: '15:00' }])
+                    }
+                  >
+                    {t.addInterval}
+                  </Button>
+                  <Button onClick={save} loading={saving}>
+                    {t.save}
+                  </Button>
+                </Group>
+
+                {savedAt === selectedDate && (
+                  <Text c="green" size="sm">
+                    {t.saved}
+                  </Text>
+                )}
+                {formError && (
+                  <Text c="red" size="sm">
+                    {formError}
+                  </Text>
+                )}
+                {blocking.map((meeting) => (
+                  <Text key={meeting.start} c="red" size="sm">
+                    {`${formatLocalDateTime(meeting.start)} — ${meeting.guestName}`}
+                  </Text>
+                ))}
+              </Stack>
+            </Card>
+        </SimpleGrid>
+
+        <Card component="section" withBorder p="lg">
+          <Stack gap="xs">
+            <Title order={2}>{t.guestLinkTitle}</Title>
+            <Text c="dimmed" size="sm">
+              {t.guestLinkHint}
+            </Text>
+            <Text size="sm" c="dimmed" style={{ wordBreak: 'break-all' }}>
+              {guestUrl}
+            </Text>
+            <CopyButton value={guestUrl} timeout={2000}>
+              {({ copied, copy }) => (
+                <Button
+                  onClick={copy}
+                  variant={copied ? 'filled' : 'default'}
+                  size="compact-sm"
+                  style={{ alignSelf: 'flex-start' }}
+                >
+                  {copied ? t.copied : t.copy}
+                </Button>
+              )}
+            </CopyButton>
+          </Stack>
+        </Card>
 
         <Box component="section">
           <Stack gap="md">
@@ -169,150 +333,25 @@ export function OwnerPage() {
                 {t.meetingsEmpty}
               </Text>
             ) : (
-              <Stack gap="md">
-                {meetings.map((meeting) => (
-                  <MeetingCard key={meeting.id} meeting={meeting} />
-                ))}
-              </Stack>
-            )}
-          </Stack>
-        </Box>
-
-        <Box component="section">
-          <Stack gap="lg" maw={480}>
-            <Title order={2}>{t.formTitle}</Title>
-            <form onSubmit={submit} noValidate>
-              <Stack gap="md">
-                <TextInput
-                  label={t.nameLabel}
-                  value={name}
-                  error={fieldErrors.name}
-                  maxLength={NAME_MAX}
-                  onChange={(event) => setName(event.currentTarget.value)}
-                />
-                <Textarea
-                  label={t.descriptionLabel}
-                  value={description}
-                  error={fieldErrors.description}
-                  maxLength={DESCRIPTION_MAX}
-                  autosize
-                  minRows={2}
-                  onChange={(event) => setDescription(event.currentTarget.value)}
-                />
-                <NumberInput
-                  label={t.durationLabel}
-                  value={duration}
-                  error={fieldErrors.duration}
-                  min={DURATION_MIN}
-                  max={DURATION_MAX}
-                  step={DURATION_STEP}
-                  onChange={(value) => setDuration(value)}
-                />
-                <Button type="submit" loading={saving}>
-                  {t.create}
-                </Button>
-                {fieldErrors.form && (
-                  <Text c="red" size="sm">
-                    {fieldErrors.form}
-                  </Text>
-                )}
-              </Stack>
-            </form>
-          </Stack>
-        </Box>
-
-        <Box component="section">
-          <Stack gap="md">
-            <Title order={2}>{t.listTitle}</Title>
-            {listFailed ? (
-              <Text c="dimmed" size="sm">
-                {t.loadError}
-              </Text>
-            ) : items.length === 0 ? (
-              <Text c="dimmed" size="sm">
-                {t.empty}
-              </Text>
-            ) : (
-              <Stack gap="md">
-                {items.map((item) => (
-                  <GuestLinkCard
-                    key={item.id}
-                    item={item}
-                    ownerEmail={ownerEmail}
-                  />
-                ))}
-              </Stack>
+              meetings.map((meeting) => (
+                <Card key={meeting.id} component="article" withBorder p="lg">
+                  <Stack gap="xs">
+                    <Text size="sm">
+                      {`${t.whenLabel}: ${formatLocalDateTime(meeting.start)} (${timezone})`}
+                    </Text>
+                    <Text c="dimmed" size="sm">
+                      {`${meeting.durationMinutes} ${shared.minutesSuffix}`}
+                    </Text>
+                    <Text size="sm">
+                      {`${t.guestLabel}: ${meeting.guestName} <${meeting.guestEmail}>`}
+                    </Text>
+                  </Stack>
+                </Card>
+              ))
             )}
           </Stack>
         </Box>
       </Stack>
     </Container>
-  )
-}
-
-function MeetingCard({ meeting }: { meeting: Meeting }) {
-  const t = useAppText().owner
-  const shared = useAppText().shared
-  const timezone = localTimezone()
-
-  return (
-    <Card component="article" withBorder p="lg">
-      <Stack gap="xs">
-        <Title order={3}>{meeting.eventTypeName}</Title>
-        <Text size="sm">
-          {`${t.whenLabel}: ${formatLocalDateTime(meeting.start)} (${timezone})`}
-        </Text>
-        <Text c="dimmed" size="sm">
-          {durationMinutes(meeting.start, meeting.end)} {shared.minutesSuffix}
-        </Text>
-        <Text size="sm">
-          {`${t.guestLabel}: ${meeting.guestName} <${meeting.guestEmail}>`}
-        </Text>
-      </Stack>
-    </Card>
-  )
-}
-
-function GuestLinkCard({
-  item,
-  ownerEmail,
-}: {
-  item: EventType
-  ownerEmail: string
-}) {
-  const t = useAppText().owner
-  const shared = useAppText().shared
-  const url = `${window.location.origin}${guestHref(ownerEmail, item.id)}`
-
-  return (
-    <Card component="article" withBorder p="lg">
-      <Stack gap="xs">
-        <Title order={3}>{item.name}</Title>
-        <Text c="dimmed" size="sm">
-          {item.description}
-        </Text>
-        <Text c="dimmed" size="sm">
-          {item.duration} {shared.minutesSuffix}
-        </Text>
-        <Text size="sm" fw={700}>
-          {t.guestLinkLabel}
-        </Text>
-        <Text size="sm" c="dimmed" style={{ wordBreak: 'break-all' }}>
-          {url}
-        </Text>
-        <CopyButton value={url} timeout={2000}>
-          {({ copied, copy }) => (
-            <Button
-              onClick={copy}
-              variant={copied ? 'filled' : 'default'}
-              size="compact-sm"
-              style={{ alignSelf: 'flex-start' }}
-            >
-              {copied ? t.copied : t.copy}
-            </Button>
-          )}
-        </CopyButton>
-      </Stack>
-    </Card>
   )
 }

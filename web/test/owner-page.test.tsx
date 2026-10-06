@@ -1,18 +1,28 @@
 import { MantineProvider } from '@mantine/core'
-import { render, screen, within } from '@testing-library/react'
+import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import App from '../src/App.tsx'
+import { MemoryRouter, Route, Routes } from 'react-router'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { appCopy } from '../src/content/app.ts'
 import { LocaleProvider } from '../src/i18n.tsx'
-import { guestHref } from '../src/links.ts'
-import type { EventType, Meeting } from '../src/api.ts'
+import { OwnerPage } from '../src/pages/OwnerPage.tsx'
 
-const ru = appCopy.ru
+const ru = appCopy.ru.owner
+const owner = 'owner@example.com'
 
-const ownerEmail = 'owner@example.com'
-const apiUrl = `/api/owners/${encodeURIComponent(ownerEmail)}/event-types`
-const meetingsUrl = `/api/owners/${encodeURIComponent(ownerEmail)}/meetings`
+// Тестовая зона — Europe/Moscow (+03:00, см. vitest.config.ts).
+function todayDate(): string {
+  const now = new Date()
+  const month = String(now.getMonth() + 1).padStart(2, '0')
+  const day = String(now.getDate()).padStart(2, '0')
+  return `${now.getFullYear()}-${month}-${day}`
+}
+
+function localIso(hours: number, minutes = 0): string {
+  const date = new Date()
+  date.setHours(hours, minutes, 0, 0)
+  return date.toISOString()
+}
 
 function json(status: number, body: unknown): Response {
   return new Response(JSON.stringify(body), {
@@ -21,316 +31,181 @@ function json(status: number, body: unknown): Response {
   })
 }
 
-const existing: EventType = {
-  id: 1,
-  ownerEmail,
-  name: 'Знакомство',
-  description: 'Первый созвон: знакомимся и обсуждаем идеи',
-  duration: 30,
-}
-
-const created: EventType = {
-  id: 5,
-  ownerEmail,
-  name: 'Карьерный разбор',
-  description: 'Смотрим резюме и план роста',
-  duration: 45,
-}
-
-// Стаб fetch: маршруты (method + url) → Response; прочее — ошибка теста.
-// Список встреч по умолчанию — пустой (своя страница в стеке, не предмет
-// большинства тестов здесь); переопределяется явным роутом на meetingsUrl.
-function stubFetch(
-  routes: { method?: string; url?: string; respond: () => Response }[],
+function stubApi(
+  options: {
+    availability?: unknown[]
+    meetings?: unknown[]
+    putStatus?: number
+    blocking?: unknown[]
+  } = {},
 ) {
-  const mock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
-    const url = String(input)
-    const method = init?.method ?? 'GET'
-    const route = routes.find(
-      (candidate) =>
-        (candidate.method ?? 'GET') === method &&
-        (candidate.url ?? apiUrl) === url,
-    )
-    if (route) return route.respond()
-    if (method === 'GET' && url === meetingsUrl) return json(200, [])
-    throw new Error(`нет стаба для ${method} ${url}`)
-  })
-  vi.stubGlobal('fetch', mock)
-  return mock
+  const calls: { url: string; init?: RequestInit }[] = []
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async (url: string, init?: RequestInit) => {
+      calls.push({ url, init })
+      if (init?.method === 'PUT') {
+        if (options.putStatus === 409) {
+          return json(409, {
+            message: 'availability cannot be withdrawn from under a booking',
+            meetings: options.blocking ?? [],
+          })
+        }
+        const body = JSON.parse(String(init.body)) as { intervals: unknown[] }
+        return json(200, { date: todayDate(), intervals: body.intervals })
+      }
+      if (url.includes('/meetings')) return json(200, options.meetings ?? [])
+      return json(200, options.availability ?? [])
+    }),
+  )
+  return calls
 }
 
-// jsdom без clipboard API — подменяем, CopyButton пишет сюда.
-function stubClipboard(): ReturnType<typeof vi.fn> {
-  const writeText = vi.fn().mockResolvedValue(undefined)
-  Object.defineProperty(navigator, 'clipboard', {
-    value: { writeText },
-    configurable: true,
-  })
-  return writeText
-}
-
-function renderOwnerPage() {
-  window.history.pushState({}, '', `/owner/${encodeURIComponent(ownerEmail)}`)
+function renderOwner() {
   return render(
     <MantineProvider>
       <LocaleProvider>
-        <App />
+        <MemoryRouter initialEntries={[`/owner/${encodeURIComponent(owner)}`]}>
+          <Routes>
+            <Route path="/owner/:email" element={<OwnerPage />} />
+          </Routes>
+        </MemoryRouter>
       </LocaleProvider>
     </MantineProvider>,
   )
 }
 
-beforeEach(() => {
-  window.localStorage.clear()
-})
-
 afterEach(() => {
   vi.unstubAllGlobals()
 })
 
-describe('зона владельца: ближайшие встречи', () => {
-  const meeting: Meeting = {
-    id: 1,
-    eventTypeId: existing.id,
-    eventTypeName: existing.name,
-    ownerEmail,
-    start: new Date(Date.UTC(2024, 5, 15, 7, 0)).toISOString(),
-    end: new Date(Date.UTC(2024, 5, 15, 7, 30)).toISOString(),
-    guestName: 'Гость',
-    guestEmail: 'guest@example.com',
-  }
-
-  it('показывает встречу из гостевого флоу: тип, время и гостя', async () => {
-    stubFetch([
-      { respond: () => json(200, [existing]) },
-      { url: meetingsUrl, respond: () => json(200, [meeting]) },
-    ])
-    renderOwnerPage()
-
-    const section = screen
-      .getByRole('heading', { level: 2, name: ru.owner.meetingsTitle })
-      .closest('section')!
-
-    expect(
-      await within(section).findByRole('heading', {
-        level: 3,
-        name: existing.name,
-      }),
-    ).toBeInTheDocument()
-    // TZ фиксирован на Europe/Moscow в vitest.config.ts: 07:00 UTC → 10:00 местного.
-    expect(within(section).getByText(/2024-06-15 10:00/)).toBeInTheDocument()
-    expect(within(section).getByText('30 мин')).toBeInTheDocument()
-    expect(
-      within(section).getByText(
-        `${ru.owner.guestLabel}: Гость <guest@example.com>`,
-      ),
-    ).toBeInTheDocument()
+describe('кабинет владельца: календарь доступности', () => {
+  it('день без часов подписан как закрытый', async () => {
+    stubApi()
+    renderOwner()
+    expect(await screen.findByText(ru.dayClosed)).toBeInTheDocument()
   })
 
-  it('пустой список встреч — подсказка', async () => {
-    stubFetch([{ respond: () => json(200, []) }])
-    renderOwnerPage()
-    expect(await screen.findByText(ru.owner.meetingsEmpty)).toBeInTheDocument()
-  })
-
-  it('ошибка загрузки встреч — сообщение', async () => {
-    stubFetch([
-      { respond: () => json(200, []) },
-      {
-        url: meetingsUrl,
-        respond: () => new Response('boom', { status: 500 }),
-      },
-    ])
-    renderOwnerPage()
-    expect(
-      await screen.findByText(ru.owner.meetingsLoadError),
-    ).toBeInTheDocument()
-  })
-})
-
-describe('зона владельца: список типов встреч', () => {
-  it('показывает существующие типы со ссылкой для гостя', async () => {
-    stubFetch([{ respond: () => json(200, [existing]) }])
-    renderOwnerPage()
-
-    expect(
-      await screen.findByRole('heading', { level: 3, name: existing.name }),
-    ).toBeInTheDocument()
-    expect(screen.getByText(existing.description)).toBeInTheDocument()
-    expect(screen.getByText('30 мин')).toBeInTheDocument()
-
-    const url = `${window.location.origin}${guestHref(ownerEmail, existing.id)}`
-    expect(screen.getByText(url)).toBeInTheDocument()
-    expect(
-      screen.getAllByRole('button', { name: ru.owner.copy }).length,
-    ).toBeGreaterThan(0)
-  })
-
-  it('пустой список — подсказка', async () => {
-    stubFetch([{ respond: () => json(200, []) }])
-    renderOwnerPage()
-    expect(await screen.findByText(ru.owner.empty)).toBeInTheDocument()
-  })
-
-  it('ошибка загрузки — сообщение', async () => {
-    stubFetch([{ respond: () => new Response('boom', { status: 500 }) }])
-    renderOwnerPage()
-    expect(await screen.findByText(ru.owner.loadError)).toBeInTheDocument()
-  })
-})
-
-describe('зона владельца: создание типа встречи', () => {
-  async function fillForm(user: ReturnType<typeof userEvent.setup>) {
-    await user.type(
-      screen.getByRole('textbox', { name: ru.owner.nameLabel }),
-      created.name,
-    )
-    await user.type(
-      screen.getByRole('textbox', { name: ru.owner.descriptionLabel }),
-      created.description,
-    )
-    // длительность: 30 (значение по умолчанию) → 45
-    await user.clear(
-      screen.getByRole('textbox', { name: ru.owner.durationLabel }),
-    )
-    await user.type(
-      screen.getByRole('textbox', { name: ru.owner.durationLabel }),
-      '45',
-    )
-  }
-
-  it('клиентская валидация не пускает пустую форму на сервер', async () => {
-    const fetchMock = stubFetch([{ respond: () => json(200, []) }])
+  it('сохраняет добавленный интервал как UTC-инстанты', async () => {
+    const calls = stubApi()
     const user = userEvent.setup()
-    renderOwnerPage()
-    await screen.findByText(ru.owner.empty)
+    renderOwner()
+    await screen.findByText(ru.dayClosed)
 
-    await user.clear(screen.getByRole('textbox', { name: ru.owner.nameLabel }))
-    await user.clear(
-      screen.getByRole('textbox', { name: ru.owner.descriptionLabel }),
-    )
-    await user.click(screen.getByRole('button', { name: ru.owner.create }))
+    await user.click(screen.getByRole('button', { name: ru.addInterval }))
+    await user.click(screen.getByRole('button', { name: ru.save }))
 
-    expect(screen.getByText(ru.owner.nameRequired)).toBeInTheDocument()
-    expect(screen.getByText(ru.owner.descriptionRequired)).toBeInTheDocument()
-    expect(fetchMock).not.toHaveBeenCalledWith(
-      apiUrl,
-      expect.objectContaining({ method: 'POST' }),
-    )
-  })
-
-  it('клиентская валидация ловит некратную 15 длительность', async () => {
-    stubFetch([{ respond: () => json(200, []) }])
-    const user = userEvent.setup()
-    renderOwnerPage()
-    await screen.findByText(ru.owner.empty)
-
-    await user.type(
-      screen.getByRole('textbox', { name: ru.owner.nameLabel }),
-      created.name,
-    )
-    await user.type(
-      screen.getByRole('textbox', { name: ru.owner.descriptionLabel }),
-      created.description,
-    )
-    const durationInput = screen.getByRole('textbox', {
-      name: ru.owner.durationLabel,
+    expect(await screen.findByText(ru.saved)).toBeInTheDocument()
+    const put = calls.find((call) => call.init?.method === 'PUT')
+    expect(put?.url).toContain(`/availability/${todayDate()}`)
+    // Браузер сам переводит локальные 11:00–15:00 в UTC — сервер ничего не разворачивает.
+    expect(JSON.parse(String(put?.init?.body))).toEqual({
+      intervals: [{ start: localIso(11), end: localIso(15) }],
     })
-    await user.clear(durationInput)
-    await user.type(durationInput, '42')
-    await user.click(screen.getByRole('button', { name: ru.owner.create }))
-
-    expect(screen.getByText(ru.owner.durationInvalid)).toBeInTheDocument()
   })
 
-  it('показывает ошибки сервера (422) по полям', async () => {
-    stubFetch([
-      { respond: () => json(200, []) },
-      {
-        method: 'POST',
-        respond: () =>
-          json(422, {
-            message: 'body/body must be multiple of 15',
-            errors: [{ path: 'duration', message: 'must be multiple of 15' }],
-          }),
-      },
-    ])
-    const user = userEvent.setup()
-    renderOwnerPage()
-    await screen.findByText(ru.owner.empty)
+  it('подставляет уже сохранённые часы в редактор', async () => {
+    stubApi({
+      availability: [
+        {
+          date: todayDate(),
+          intervals: [{ start: localIso(9), end: localIso(13) }],
+        },
+      ],
+    })
+    renderOwner()
 
-    await user.type(
-      screen.getByRole('textbox', { name: ru.owner.nameLabel }),
-      created.name,
-    )
-    await user.type(
-      screen.getByRole('textbox', { name: ru.owner.descriptionLabel }),
-      created.description,
-    )
-    await user.click(screen.getByRole('button', { name: ru.owner.create }))
+    // Mantine Select рендерит и видимый combobox, и скрытый input для формы —
+    // проверяем, что сохранённые часы показаны, не придираясь к тому, которым.
+    expect(await screen.findAllByDisplayValue('09:00')).not.toHaveLength(0)
+    expect(screen.getAllByDisplayValue('13:00')).not.toHaveLength(0)
+  })
+
+  it('пересекающиеся интервалы не уходят на сервер', async () => {
+    const calls = stubApi()
+    const user = userEvent.setup()
+    renderOwner()
+    await screen.findByText(ru.dayClosed)
+
+    await user.click(screen.getByRole('button', { name: ru.addInterval }))
+    await user.click(screen.getByRole('button', { name: ru.addInterval }))
+    await user.click(screen.getByRole('button', { name: ru.save }))
+
+    expect(screen.getByText(ru.intervalsOverlap)).toBeInTheDocument()
+    expect(calls.some((call) => call.init?.method === 'PUT')).toBe(false)
+  })
+
+  it('интервал можно удалить', async () => {
+    stubApi({
+      availability: [
+        {
+          date: todayDate(),
+          intervals: [{ start: localIso(9), end: localIso(13) }],
+        },
+      ],
+    })
+    const user = userEvent.setup()
+    renderOwner()
+    await screen.findAllByLabelText(ru.fromLabel)
+
+    await user.click(screen.getByRole('button', { name: ru.removeInterval }))
+
+    expect(screen.getByText(ru.dayClosed)).toBeInTheDocument()
+  })
+
+  it('409 показывает, какая встреча держит день', async () => {
+    stubApi({
+      putStatus: 409,
+      blocking: [{ start: localIso(12), end: localIso(12, 45), guestName: 'Гость' }],
+    })
+    const user = userEvent.setup()
+    renderOwner()
+    await screen.findByText(ru.dayClosed)
+
+    await user.click(screen.getByRole('button', { name: ru.addInterval }))
+    await user.click(screen.getByRole('button', { name: ru.save }))
+
+    expect(await screen.findByText(ru.conflictTitle)).toBeInTheDocument()
+    expect(screen.getByText(/Гость/)).toBeInTheDocument()
+    expect(screen.queryByText(ru.saved)).not.toBeInTheDocument()
+  })
+
+  it('показывает одну ссылку на календарь, без типов встреч', async () => {
+    stubApi()
+    renderOwner()
+    await screen.findByText(ru.dayClosed)
 
     expect(
-      await screen.findByText('must be multiple of 15'),
+      screen.getByText(`http://localhost:3000/book/${encodeURIComponent(owner)}`),
     ).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: ru.copy })).toBeInTheDocument()
   })
 
-  it('успех: новый тип появляется со ссылкой для гостя и рабочей копией', async () => {
-    const fetchMock = stubFetch([
-      { respond: () => json(200, []) },
-      { method: 'POST', respond: () => json(201, created) },
-    ])
-    const user = userEvent.setup()
-    // userEvent.setup() подменяет navigator.clipboard своей заглушкой —
-    // поэтому наш стаб ставим после него.
-    const writeText = stubClipboard()
-    renderOwnerPage()
-    await screen.findByText(ru.owner.empty)
+  it('перечисляет ближайшие встречи с длительностью и гостем', async () => {
+    stubApi({
+      meetings: [
+        {
+          id: 1,
+          ownerEmail: owner,
+          start: localIso(14),
+          end: localIso(14, 45),
+          durationMinutes: 45,
+          guestName: 'Гость',
+          guestEmail: 'guest@example.com',
+        },
+      ],
+    })
+    renderOwner()
 
-    await fillForm(user)
-    await user.click(screen.getByRole('button', { name: ru.owner.create }))
-
-    // POST ушел с телом из формы
-    expect(fetchMock).toHaveBeenCalledWith(
-      apiUrl,
-      expect.objectContaining({
-        method: 'POST',
-        body: JSON.stringify({
-          name: created.name,
-          description: created.description,
-          duration: created.duration,
-        }),
-      }),
-    )
-
-    // карточка созданного типа со ссылкой
     expect(
-      await screen.findByRole('heading', { level: 3, name: created.name }),
+      await screen.findByText(/Гость <guest@example\.com>/),
     ).toBeInTheDocument()
-    const url = `${window.location.origin}${guestHref(ownerEmail, created.id)}`
-    expect(screen.getByText(url)).toBeInTheDocument()
-
-    // кнопка копирования кладет ссылку в буфер
-    await user.click(screen.getAllByRole('button', { name: ru.owner.copy })[0])
-    expect(writeText).toHaveBeenCalledWith(url)
-
-    // форма очищена
-    expect(
-      screen.getByRole('textbox', { name: ru.owner.nameLabel }),
-    ).toHaveValue('')
+    expect(screen.getByText('45 мин')).toBeInTheDocument()
   })
 
-  it('сетевая ошибка при создании — сообщение об ошибке', async () => {
-    stubFetch([
-      { respond: () => json(200, []) },
-      { method: 'POST', respond: () => new Response('boom', { status: 500 }) },
-    ])
-    const user = userEvent.setup()
-    renderOwnerPage()
-    await screen.findByText(ru.owner.empty)
-
-    await fillForm(user)
-    await user.click(screen.getByRole('button', { name: ru.owner.create }))
-
-    expect(await screen.findByText(ru.errors.network)).toBeInTheDocument()
+  it('пустой список встреч подписан', async () => {
+    stubApi()
+    renderOwner()
+    expect(await screen.findByText(ru.meetingsEmpty)).toBeInTheDocument()
   })
 })
