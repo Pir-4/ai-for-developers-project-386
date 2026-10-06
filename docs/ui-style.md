@@ -60,7 +60,28 @@ Use `AppShell` (`header={{ height: 60 }} padding="md"`) with semantic
   `gap="md"` — horizontal row on desktop, vertical stack on mobile, no
   breakpoint JS. Numbered sequences are real `<ol>`/`<li>`; a decorative
   number badge (`Text fw={900} c="blue"`) never replaces list semantics.
+  When the row needs a fixed column count per breakpoint instead of
+  auto-fit sizing (e.g. a known 2- or 3-card layout), `SimpleGrid cols={{
+  base: 1, md: N }} spacing="md"` is the approved alternative — keep
+  `spacing="md"` so it reads as tight as the auto-fit grid (`lg` looks
+  loose next to it).
 - Cards: `Card withBorder p="lg"`, body text `size="sm" c="dimmed"`.
+
+## Calendar & slot ladder
+
+- `DatePicker` day cells that carry a secondary line (e.g. a free-slot
+  count) always render two lines, even when the second is empty — a
+  conditional line makes some grid rows taller than others, which reads as
+  the calendar wobbling. Reserve the empty line with `' '` rather than
+  omitting it, and bump `size="md"` on the `DatePicker` so the enlarged
+  `--day-size` cell fits both lines without clipping.
+- A disabled/"taken" row in a slot ladder (`Button disabled` carrying
+  `data-status="busy"` for tests) needs an explicit grey, not just
+  Mantine's default disabled look — that reads too close to the enabled
+  `variant="default"` button to tell apart at a glance. Set `bg="gray.2"
+  c="gray.6"` on the button (and on its status label) when busy, plus
+  `style={{ opacity: 1 }}` to cancel the dimming Mantine's own disabled
+  state would otherwise layer on top.
 
 ## Buttons & links
 
