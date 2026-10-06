@@ -202,7 +202,7 @@ export function OwnerPage() {
       <Stack gap="xl">
         <Title order={1}>{t.title}</Title>
 
-        <SimpleGrid cols={{ base: 1, md: 2 }} spacing="lg">
+        <SimpleGrid cols={{ base: 1, md: 2 }} spacing="md">
             <Card component="section" withBorder p="lg">
               <Stack gap="xs">
                 <Title order={2}>{t.calendarTitle}</Title>

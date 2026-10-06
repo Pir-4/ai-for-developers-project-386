@@ -189,7 +189,7 @@ export function GuestPage() {
       <Stack gap="lg">
         <Title order={1}>{t.title}</Title>
 
-        <SimpleGrid cols={{ base: 1, md: 3 }} spacing="lg">
+        <SimpleGrid cols={{ base: 1, md: 3 }} spacing="md">
             <Card component="section" withBorder p="lg">
               <Stack gap="md">
                 <Box>
@@ -224,6 +224,7 @@ export function GuestPage() {
               <Stack gap="xs">
                 <Title order={3}>{t.dayLabel}</Title>
                 <DatePicker
+                  size="md"
                   value={selectedDate}
                   onChange={(value) => {
                     if (!value) return
@@ -234,16 +235,17 @@ export function GuestPage() {
                   minDate={today}
                   maxDate={addDays(today, BOOKING_WINDOW_DAYS)}
                   excludeDate={(date) => freeCount(date) === 0}
-                  renderDay={(date) => (
-                    <Stack gap={0} align="center">
-                      <span>{Number(date.slice(8, 10))}</span>
-                      {freeCount(date) > 0 && (
+                  renderDay={(date) => {
+                    const free = freeCount(date)
+                    return (
+                      <Stack gap={0} align="center">
+                        <span>{Number(date.slice(8, 10))}</span>
                         <Text component="span" size="9px" c="dimmed">
-                          {`${freeCount(date)} ${t.freeCountSuffix}`}
+                          {free > 0 ? `${free} ${t.freeCountSuffix}` : ' '}
                         </Text>
-                      )}
-                    </Stack>
-                  )}
+                      </Stack>
+                    )
+                  }}
                 />
               </Stack>
             </Card>
@@ -345,6 +347,7 @@ function SlotRow({
 }) {
   const busy = slot.status === 'busy'
   const range = `${formatLocalTime(slot.start)} - ${formatLocalTime(slot.end)}`
+  const busyColor = busy ? 'gray.6' : undefined
 
   return (
     <Button
@@ -354,8 +357,14 @@ function SlotRow({
       data-status={slot.status}
       aria-pressed={selected}
       onClick={onSelect}
+      bg={busy ? 'gray.2' : undefined}
+      c={busyColor}
+      // Mantine's own disabled look reads too close to the enabled
+      // `variant="default"` button; override it with an explicit grey and
+      // cancel the default dimming it'd otherwise add on top.
+      style={busy ? { opacity: 1 } : undefined}
       rightSection={
-        <Text component="span" size="xs" fw={700}>
+        <Text component="span" size="xs" fw={700} c={busyColor}>
           {busy ? busyLabel : freeLabel}
         </Text>
       }
