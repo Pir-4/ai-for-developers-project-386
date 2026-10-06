@@ -96,6 +96,53 @@ model NotFoundResponse is Response<404> {
   @body body: NotFoundError;
 }
 
+/** The requested interval is already booked. */
+model ConflictError {
+  /** Human-readable summary. */
+  message: string;
+}
+
+/** 409 — the requested interval overlaps an existing booking of the owner. */
+model ConflictResponse is Response<409> {
+  @body body: ConflictError;
+}
+
+/** A reservation of a slot for an event type, holding the guest's name and email. */
+model Booking {
+  /** Server-assigned identifier. */
+  id: int32;
+  /** The event type this booking is for. */
+  eventTypeId: int32;
+  /** Email of the owner this booking belongs to. */
+  ownerEmail: string;
+  /** Start of the booked interval, UTC ISO 8601. */
+  start: utcDateTime;
+  /** End of the booked interval, UTC ISO 8601 (start + the event type's duration). */
+  end: utcDateTime;
+  /** The guest's name. */
+  guestName: string;
+  /** The guest's email. */
+  guestEmail: string;
+  /** When the booking was created, UTC ISO 8601. */
+  createdAt: utcDateTime;
+}
+
+/** Body for booking a slot. */
+model CreateBookingBody {
+  /** The guest's name (trimmed server-side to 1–100 characters; raw length is not itself validated). */
+  guestName: string;
+  /** The guest's email. */
+  @pattern("^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$")
+  guestEmail: string;
+  /** The slot's start time, UTC ISO 8601: must fall on the :00/:30 grid, not be in the past, and lie within the booking window. */
+  start: utcDateTime;
+}
+
+/** 201 — the created booking. */
+model CreatedBookingResponse is Response<201> {
+  @body body: Booking;
+}
+
 /** Create an event type for the owner. */
 @route("/owners/{ownerEmail}/event-types")
 @post
@@ -120,3 +167,16 @@ op listSlots(
   @path ownerEmail: string,
   @path id: int32,
 ): utcDateTime[] | NotFoundResponse;
+
+/** Book a slot for the event type. */
+@route("/owners/{ownerEmail}/event-types/{id}/bookings")
+@post
+op createBooking(
+  @path ownerEmail: string,
+  @path id: int32,
+  @body body: CreateBookingBody,
+):
+  | CreatedBookingResponse
+  | UnprocessableEntityResponse
+  | NotFoundResponse
+  | ConflictResponse;

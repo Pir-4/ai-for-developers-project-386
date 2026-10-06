@@ -19,7 +19,7 @@ const lastSlot = "2024-01-23T23:30:00.000Z";
 const windowEndSlot = "2024-01-24T00:00:00.000Z";
 
 // Открываем базу сами (а не через dbPath), чтобы завести фикстуру брони
-// напрямую — создающего эндпоинта для неё пока нет (см. #23).
+// напрямую, не ограничиваясь правилами эндпоинта бронирования (сетка/окно/overlap, см. #23).
 async function buildAppWithEventType() {
   const db = openDatabase(":memory:");
   const app = await buildApp({ db, clock: () => now });

@@ -3,6 +3,8 @@ import type { components } from './generated/schema.js'
 export type EventType = components['schemas']['EventType']
 export type CreateEventTypeBody = components['schemas']['CreateEventTypeBody']
 export type ValidationError = components['schemas']['ValidationError']
+export type Booking = components['schemas']['Booking']
+export type CreateBookingBody = components['schemas']['CreateBookingBody']
 
 /** 422 from the API — carries per-field errors (path + message). */
 export class ApiValidationError extends Error {
@@ -15,11 +17,23 @@ export class ApiValidationError extends Error {
   }
 }
 
+/** 409 from the API — the slot was taken in the meantime. */
+export class ApiConflictError extends Error {
+  constructor(message: string) {
+    super(message)
+    this.name = 'ApiConflictError'
+  }
+}
+
 async function requestJson<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(path, init)
   if (!response.ok) {
     if (response.status === 422) {
       throw new ApiValidationError((await response.json()) as ValidationError)
+    }
+    if (response.status === 409) {
+      const body = (await response.json()) as { message: string }
+      throw new ApiConflictError(body.message)
     }
     throw new Error(`${response.status} ${response.statusText}`)
   }
@@ -55,4 +69,17 @@ export function listSlots(
   return requestJson(
     `${eventTypesUrl(ownerEmail)}/${eventTypeId}/slots`,
   )
+}
+
+/** Books a slot; throws ApiValidationError (422), ApiConflictError (409 — taken meanwhile). */
+export function createBooking(
+  ownerEmail: string,
+  eventTypeId: number,
+  body: CreateBookingBody,
+): Promise<Booking> {
+  return requestJson(`${eventTypesUrl(ownerEmail)}/${eventTypeId}/bookings`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  })
 }
