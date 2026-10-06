@@ -2,7 +2,6 @@ import { BrowserRouter, Navigate, Route, Routes } from 'react-router'
 import { AppShell } from '@mantine/core'
 import { SiteFooter } from './components/SiteFooter.tsx'
 import { SiteHeader } from './components/SiteHeader.tsx'
-import { GuestCatalogPage } from './pages/GuestCatalogPage.tsx'
 import { GuestPage } from './pages/GuestPage.tsx'
 import { LandingPage } from './pages/LandingPage.tsx'
 import { LoginPage } from './pages/LoginPage.tsx'
@@ -10,8 +9,7 @@ import { NotFoundPage } from './pages/NotFoundPage.tsx'
 import { OwnerPage } from './pages/OwnerPage.tsx'
 
 // Client routes: / — landing, /login → /owner/:email (bare /owner redirects),
-// /book/:email — guest's booking types catalog, /book/:email/:id — the
-// calendar page for a chosen type.
+// /book/:email — the owner's calendar, where the guest picks a length and a time.
 function App() {
   return (
     <BrowserRouter>
@@ -23,8 +21,7 @@ function App() {
             <Route path="/login" element={<LoginPage />} />
             <Route path="/owner" element={<Navigate to="/login" replace />} />
             <Route path="/owner/:email" element={<OwnerPage />} />
-            <Route path="/book/:email" element={<GuestCatalogPage />} />
-            <Route path="/book/:email/:id" element={<GuestPage />} />
+            <Route path="/book/:email" element={<GuestPage />} />
             <Route path="*" element={<NotFoundPage />} />
           </Routes>
         </AppShell.Main>

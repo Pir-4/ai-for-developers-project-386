@@ -25,25 +25,41 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/owners/{ownerEmail}/event-types": {
+    "/owners/{ownerEmail}/availability": {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        /** @description List the owner's event types, oldest first. */
-        get: operations["listEventTypes"];
+        /** @description List the owner's availability for the booking window, oldest date first. */
+        get: operations["listAvailability"];
         put?: never;
-        /** @description Create an event type for the owner. */
-        post: operations["createEventType"];
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
         patch?: never;
         trace?: never;
     };
-    "/owners/{ownerEmail}/event-types/{id}/bookings": {
+    "/owners/{ownerEmail}/availability/{date}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** @description Replace the owner's availability for one date. */
+        put: operations["setAvailability"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/owners/{ownerEmail}/bookings": {
         parameters: {
             query?: never;
             header?: never;
@@ -52,29 +68,8 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** @description Book a slot for the event type. */
+        /** @description Book a slot on the owner's calendar. */
         post: operations["createBooking"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/owners/{ownerEmail}/event-types/{id}/slots": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * @description Free slot start times for this event type, UTC ISO 8601, on the 30-minute
-         *     grid (`:00`/`:30`), bounded to the booking window and excluding the
-         *     owner's booked intervals.
-         */
-        get: operations["listSlots"];
-        put?: never;
-        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -98,22 +93,64 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/owners/{ownerEmail}/slots": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * @description The owner's slot ladder for the whole booking window, ordered by start.
+         *
+         *     Cells are laid end to end from the start of each availability interval, each
+         *     exactly `duration` minutes long; a trailing remainder that does not fit is
+         *     dropped, and cells never span two intervals. Cells that have already started
+         *     are omitted entirely. The response is deliberately flat: the guest's browser
+         *     groups it into the guest's own local dates.
+         */
+        get: operations["listSlots"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
-        /** @description A reservation of a slot for an event type, holding the guest's name and email. */
+        /** @description Availability may not be withdrawn from under an existing booking. */
+        AvailabilityConflictError: {
+            /** @description Human-readable summary. */
+            message: string;
+            /** @description The meetings the new interval set would no longer cover. */
+            meetings: components["schemas"]["BlockingMeeting"][];
+        };
+        /** @description One of the owner's meetings that blocks an availability change. */
+        BlockingMeeting: {
+            /**
+             * Format: date-time
+             * @description Start of the meeting, UTC ISO 8601.
+             */
+            start: string;
+            /**
+             * Format: date-time
+             * @description End of the meeting, UTC ISO 8601.
+             */
+            end: string;
+            /** @description The guest's name, so the owner can tell which commitment holds the day. */
+            guestName: string;
+        };
+        /** @description A reservation of a slot, holding the guest's name and email. */
         Booking: {
             /**
              * Format: int32
              * @description Server-assigned identifier.
              */
             id: number;
-            /**
-             * Format: int32
-             * @description The event type this booking is for.
-             */
-            eventTypeId: number;
             /** @description Email of the owner this booking belongs to. */
             ownerEmail: string;
             /**
@@ -123,9 +160,14 @@ export interface components {
             start: string;
             /**
              * Format: date-time
-             * @description End of the booked interval, UTC ISO 8601 (start + the event type's duration).
+             * @description End of the booked interval, UTC ISO 8601 (`start` + `durationMinutes`).
              */
             end: string;
+            /**
+             * Format: int32
+             * @description Meeting length in minutes: 15, 30 or 45.
+             */
+            durationMinutes: number;
             /** @description The guest's name. */
             guestName: string;
             /** @description The guest's email. */
@@ -136,7 +178,7 @@ export interface components {
              */
             createdAt: string;
         };
-        /** @description The requested interval is already booked. */
+        /** @description The requested slot is no longer free. */
         ConflictError: {
             /** @description Human-readable summary. */
             message: string;
@@ -149,46 +191,28 @@ export interface components {
             guestEmail: string;
             /**
              * Format: date-time
-             * @description The slot's start time, UTC ISO 8601: must fall on the :00/:30 grid, not be in the past, and lie within the booking window.
+             * @description The slot's start time, UTC ISO 8601: must be a free rung of the owner's ladder for this duration.
              */
             start: string;
+            /** @description Meeting length in minutes. */
+            durationMinutes: components["schemas"]["MeetingDuration"];
         };
-        /** @description Body for creating an event type. */
-        CreateEventTypeBody: {
-            /** @description Short display name shown to the owner and the guest. */
-            name: string;
-            /** @description What the meeting is about, shown to the guest. */
-            description: string;
+        /** @description The intervals an owner has declared for one date. An empty list closes the day. */
+        DayAvailability: {
             /**
-             * Format: int32
-             * @description Meeting length in minutes: a multiple of 15, from 15 to 240.
+             * Format: date
+             * @description The owner's local calendar date the intervals were entered against, `YYYY-MM-DD`.
+             *     The server treats it as an opaque grouping key and derives nothing from it.
              */
-            duration: number;
-        };
-        /** @description A kind of bookable meeting defined by an owner: name, description and duration. */
-        EventType: {
-            /**
-             * Format: int32
-             * @description Server-assigned identifier.
-             */
-            id: number;
-            /** @description Email of the owner this event type belongs to. */
-            ownerEmail: string;
-            /** @description Short display name shown to the owner and the guest. */
-            name: string;
-            /** @description What the meeting is about, shown to the guest. */
-            description: string;
-            /**
-             * Format: int32
-             * @description Meeting length in minutes.
-             */
-            duration: number;
+            date: string;
+            /** @description The declared intervals, ordered by start. */
+            intervals: components["schemas"]["Interval"][];
         };
         /** @description One failed validation constraint of a request. */
         FieldError: {
-            /** @description Path to the offending property, e.g. `"duration"`. */
+            /** @description Path to the offending property, e.g. `"intervals/0/end"`. */
             path: string;
-            /** @description What is wrong with it, e.g. `"must be multiple of 15"`. */
+            /** @description What is wrong with it, e.g. `"must be after start"`. */
             message: string;
         };
         /** @description Liveness probe response. */
@@ -199,20 +223,32 @@ export interface components {
              */
             status: "ok";
         };
-        /** @description One of the owner's meetings: a booking enriched with its event type's name. */
+        /**
+         * @description One continuous stretch of an owner's availability, as UTC instants.
+         *
+         *     The owner's browser converts the hours it displays into UTC; the server stores
+         *     what it receives verbatim and performs no timezone expansion. See
+         *     `docs/research/local-time-to-utc.md`.
+         */
+        Interval: {
+            /**
+             * Format: date-time
+             * @description Start of the stretch, UTC ISO 8601.
+             */
+            start: string;
+            /**
+             * Format: date-time
+             * @description End of the stretch, UTC ISO 8601; strictly after `start`.
+             */
+            end: string;
+        };
+        /** @description One of the owner's meetings — the owner-facing view of a booking. */
         Meeting: {
             /**
              * Format: int32
              * @description Server-assigned identifier of the booking.
              */
             id: number;
-            /**
-             * Format: int32
-             * @description The event type this meeting is for.
-             */
-            eventTypeId: number;
-            /** @description Name of the event type, shown in the row. */
-            eventTypeName: string;
             /** @description Email of the owner this meeting belongs to. */
             ownerEmail: string;
             /**
@@ -225,16 +261,55 @@ export interface components {
              * @description End of the meeting, UTC ISO 8601.
              */
             end: string;
+            /**
+             * Format: int32
+             * @description Meeting length in minutes.
+             */
+            durationMinutes: number;
             /** @description The guest's name. */
             guestName: string;
             /** @description The guest's email. */
             guestEmail: string;
         };
+        /**
+         * @description Meeting length in minutes — the fixed set a guest may choose from.
+         *
+         *     An enum rather than `@multipleOf`/`@minValue`/`@maxValue`: those do not reach
+         *     a query parameter's schema in the emitted OpenAPI, so 20 would slip past
+         *     request validation.
+         * @enum {number}
+         */
+        MeetingDuration: 15 | 30 | 45;
         /** @description The referenced resource does not exist. */
         NotFoundError: {
             /** @description Human-readable summary. */
             message: string;
         };
+        /** @description Body for replacing one date's availability. */
+        SetAvailabilityBody: {
+            /** @description The full interval set for the date; an empty list closes the day. */
+            intervals: components["schemas"]["Interval"][];
+        };
+        /** @description One rung of the slot ladder: a candidate meeting of the requested duration. */
+        Slot: {
+            /**
+             * Format: date-time
+             * @description Start of the slot, UTC ISO 8601.
+             */
+            start: string;
+            /**
+             * Format: date-time
+             * @description End of the slot, UTC ISO 8601 (`start` + the requested duration).
+             */
+            end: string;
+            /** @description Whether it is still bookable. */
+            status: components["schemas"]["SlotStatus"];
+        };
+        /**
+         * @description Whether a slot can still be booked.
+         * @enum {string}
+         */
+        SlotStatus: "free" | "busy";
         /** @description The request failed validation. */
         ValidationError: {
             /** @description Human-readable summary. */
@@ -271,7 +346,7 @@ export interface operations {
             };
         };
     };
-    listEventTypes: {
+    listAvailability: {
         parameters: {
             query?: never;
             header?: never;
@@ -288,33 +363,43 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["EventType"][];
+                    "application/json": components["schemas"]["DayAvailability"][];
                 };
             };
         };
     };
-    createEventType: {
+    setAvailability: {
         parameters: {
             query?: never;
             header?: never;
             path: {
                 ownerEmail: string;
+                date: string;
             };
             cookie?: never;
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["CreateEventTypeBody"];
+                "application/json": components["schemas"]["SetAvailabilityBody"];
             };
         };
         responses: {
-            /** @description 201 — the created event type. */
-            201: {
+            /** @description 200 — the stored availability for the date. */
+            200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["EventType"];
+                    "application/json": components["schemas"]["DayAvailability"];
+                };
+            };
+            /** @description 409 — the new interval set would uncover an existing booking. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AvailabilityConflictError"];
                 };
             };
             /** @description 422 — the request failed validation. */
@@ -334,7 +419,6 @@ export interface operations {
             header?: never;
             path: {
                 ownerEmail: string;
-                id: number;
             };
             cookie?: never;
         };
@@ -362,7 +446,7 @@ export interface operations {
                     "application/json": components["schemas"]["NotFoundError"];
                 };
             };
-            /** @description 409 — the requested interval overlaps an existing booking of the owner. */
+            /** @description 409 — the requested slot overlaps an existing booking of the owner. */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -378,38 +462,6 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ValidationError"];
-                };
-            };
-        };
-    };
-    listSlots: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                ownerEmail: string;
-                id: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description The request has succeeded. */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": string[];
-                };
-            };
-            /** @description 404 — the referenced resource does not exist. */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["NotFoundError"];
                 };
             };
         };
@@ -432,6 +484,31 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Meeting"][];
+                };
+            };
+        };
+    };
+    listSlots: {
+        parameters: {
+            query: {
+                /** @description Meeting length in minutes. */
+                duration: components["schemas"]["MeetingDuration"];
+            };
+            header?: never;
+            path: {
+                ownerEmail: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The request has succeeded. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Slot"][];
                 };
             };
         };

@@ -13,22 +13,26 @@ export type LoginText = {
 
 export type OwnerText = {
   title: string
-  formTitle: string
-  nameLabel: string
-  nameRequired: string
-  nameTooLong: string
-  descriptionLabel: string
-  descriptionRequired: string
-  descriptionTooLong: string
-  durationLabel: string
-  durationInvalid: string
-  create: string
-  listTitle: string
-  guestLinkLabel: string
+  calendarTitle: string
+  calendarHint: string
+  dayTitle: string
+  dayClosed: string
+  addInterval: string
+  removeInterval: string
+  fromLabel: string
+  toLabel: string
+  save: string
+  saved: string
+  intervalInvalid: string
+  intervalsOverlap: string
+  conflictTitle: string
+  saveError: string
+  loadError: string
+  timezoneLabel: string
+  guestLinkTitle: string
+  guestLinkHint: string
   copy: string
   copied: string
-  empty: string
-  loadError: string
   meetingsTitle: string
   meetingsEmpty: string
   meetingsLoadError: string
@@ -38,10 +42,15 @@ export type OwnerText = {
 
 export type GuestText = {
   title: string
-  notFound: string
+  ownerLabel: string
+  durationLabel: string
   dayLabel: string
   timeLabel: string
   timezoneLabel: string
+  statusFree: string
+  statusBusy: string
+  freeCountSuffix: string
+  noAvailability: string
   noSlotsForDay: string
   nameLabel: string
   nameRequired: string
@@ -55,17 +64,10 @@ export type GuestText = {
   whenLabel: string
 }
 
-export type GuestCatalogText = {
-  title: string
-  hint: string
-  empty: string
-}
-
 export type AppText = {
   login: LoginText
   owner: OwnerText
   guest: GuestText
-  guestCatalog: GuestCatalogText
   notFound: { title: string; toMain: string }
   shared: { minutesSuffix: string }
   errors: { network: string }
@@ -81,23 +83,27 @@ export const appCopy: Record<Locale, AppText> = {
       invalidEmail: 'Введите корректный email',
     },
     owner: {
-      title: 'Ваши типы встреч',
-      formTitle: 'Новый тип встречи',
-      nameLabel: 'Название',
-      nameRequired: 'Введите название',
-      nameTooLong: 'Не длиннее 100 символов',
-      descriptionLabel: 'Описание',
-      descriptionRequired: 'Введите описание',
-      descriptionTooLong: 'Не длиннее 500 символов',
-      durationLabel: 'Длительность, минут',
-      durationInvalid: 'Число от 15 до 240, кратное 15',
-      create: 'Создать',
-      listTitle: 'Ссылки для гостей',
-      guestLinkLabel: 'Ссылка для гостя',
+      title: 'Ваш календарь',
+      calendarTitle: 'Календарь',
+      calendarHint: 'Выберите день, чтобы указать часы приёма — на 14 дней вперёд',
+      dayTitle: 'Часы приёма',
+      dayClosed: 'День закрыт — часы не указаны',
+      addInterval: 'Добавить интервал',
+      removeInterval: 'Удалить интервал',
+      fromLabel: 'Начало',
+      toLabel: 'Конец',
+      save: 'Сохранить день',
+      saved: 'Сохранено',
+      intervalInvalid: 'Конец должен быть позже начала',
+      intervalsOverlap: 'Интервалы не должны пересекаться',
+      conflictTitle: 'Нельзя убрать часы из-под уже назначенной встречи',
+      saveError: 'Не удалось сохранить день',
+      loadError: 'Не удалось загрузить календарь',
+      timezoneLabel: 'Часовой пояс',
+      guestLinkTitle: 'Ссылка на ваш календарь',
+      guestLinkHint: 'Отправьте её гостю — он сам выберет длительность и время',
       copy: 'Скопировать',
       copied: 'Скопировано',
-      empty: 'Пока нет ни одного типа встречи',
-      loadError: 'Не удалось загрузить список',
       meetingsTitle: 'Ближайшие встречи',
       meetingsEmpty: 'Пока нет ни одной встречи',
       meetingsLoadError: 'Не удалось загрузить встречи',
@@ -106,26 +112,26 @@ export const appCopy: Record<Locale, AppText> = {
     },
     guest: {
       title: 'Запись на встречу',
-      notFound: 'Такой тип встречи не найден',
+      ownerLabel: 'Встреча с',
+      durationLabel: 'Длительность',
       dayLabel: 'Выберите день',
-      timeLabel: 'Свободное время',
+      timeLabel: 'Время',
       timezoneLabel: 'Часовой пояс',
-      noSlotsForDay: 'На этот день нет свободного времени',
+      statusFree: 'Свободно',
+      statusBusy: 'Занято',
+      freeCountSuffix: 'св.',
+      noAvailability: 'Владелец пока не открыл ни одного дня для записи',
+      noSlotsForDay: 'На этот день свободного времени нет',
       nameLabel: 'Ваше имя',
       nameRequired: 'Введите имя',
       nameTooLong: 'Не длиннее 100 символов',
       emailLabel: 'Email',
       emailInvalid: 'Введите корректный email',
       submit: 'Забронировать',
-      slotTaken: 'Этот слот только что заняли — выберите другое время',
+      slotTaken: 'Это время только что заняли — выберите другое',
       confirmedTitle: 'Встреча подтверждена',
       guestLabel: 'Гость',
       whenLabel: 'Когда',
-    },
-    guestCatalog: {
-      title: 'Выберите тип встречи',
-      hint: 'Нажмите на карточку, чтобы перейти к выбору времени',
-      empty: 'У этого владельца пока нет типов встреч',
     },
     notFound: {
       title: 'Страница не найдена',
@@ -147,23 +153,27 @@ export const appCopy: Record<Locale, AppText> = {
       invalidEmail: 'Enter a valid email',
     },
     owner: {
-      title: 'Your event types',
-      formTitle: 'New event type',
-      nameLabel: 'Name',
-      nameRequired: 'Enter a name',
-      nameTooLong: 'At most 100 characters',
-      descriptionLabel: 'Description',
-      descriptionRequired: 'Enter a description',
-      descriptionTooLong: 'At most 500 characters',
-      durationLabel: 'Duration, minutes',
-      durationInvalid: 'A multiple of 15 between 15 and 240',
-      create: 'Create',
-      listTitle: 'Guest links',
-      guestLinkLabel: 'Guest link',
+      title: 'Your calendar',
+      calendarTitle: 'Calendar',
+      calendarHint: 'Pick a day to declare your hours — up to 14 days ahead',
+      dayTitle: 'Hours',
+      dayClosed: 'Day closed — no hours declared',
+      addInterval: 'Add interval',
+      removeInterval: 'Remove interval',
+      fromLabel: 'Start',
+      toLabel: 'End',
+      save: 'Save day',
+      saved: 'Saved',
+      intervalInvalid: 'End must be after start',
+      intervalsOverlap: 'Intervals must not overlap',
+      conflictTitle: 'Hours cannot be withdrawn from under a booked meeting',
+      saveError: 'Failed to save the day',
+      loadError: 'Failed to load the calendar',
+      timezoneLabel: 'Time zone',
+      guestLinkTitle: 'Link to your calendar',
+      guestLinkHint: 'Send it to a guest — they pick the length and the time',
       copy: 'Copy',
       copied: 'Copied',
-      empty: 'No event types yet',
-      loadError: 'Failed to load the list',
       meetingsTitle: 'Upcoming meetings',
       meetingsEmpty: 'No meetings yet',
       meetingsLoadError: 'Failed to load meetings',
@@ -172,26 +182,26 @@ export const appCopy: Record<Locale, AppText> = {
     },
     guest: {
       title: 'Book a meeting',
-      notFound: 'This event type is not found',
+      ownerLabel: 'Meeting with',
+      durationLabel: 'Length',
       dayLabel: 'Choose a day',
-      timeLabel: 'Available times',
+      timeLabel: 'Time',
       timezoneLabel: 'Time zone',
-      noSlotsForDay: 'No free times on this day',
+      statusFree: 'Free',
+      statusBusy: 'Taken',
+      freeCountSuffix: 'free',
+      noAvailability: 'This owner has not opened any days yet',
+      noSlotsForDay: 'No free time on this day',
       nameLabel: 'Your name',
       nameRequired: 'Enter a name',
       nameTooLong: 'At most 100 characters',
       emailLabel: 'Email',
       emailInvalid: 'Enter a valid email',
       submit: 'Book',
-      slotTaken: 'This slot was just taken — pick another time',
+      slotTaken: 'This time was just taken — pick another',
       confirmedTitle: 'Meeting confirmed',
       guestLabel: 'Guest',
       whenLabel: 'When',
-    },
-    guestCatalog: {
-      title: 'Choose an event type',
-      hint: 'Click a card to pick a time',
-      empty: 'This owner has no event types yet',
     },
     notFound: {
       title: 'Page not found',

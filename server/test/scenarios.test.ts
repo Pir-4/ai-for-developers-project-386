@@ -1,256 +1,270 @@
-// Полный сценарный набор (issue #25, "Testing Decisions" спеки #18): шесть
-// обязательных сценариев как единая история через HTTP-границу сервера
-// (app.inject(), фиксированные часы, :memory: БД) — итоговый критерий качества
-// фичи, отдельный от точечных тестов на каждый эндпоинт в соседних файлах.
+// Обязательный сценарный набор (спека #40, "Testing Decisions"): вся история
+// целиком через HTTP-границу сервера (app.inject(), фиксированные часы,
+// :memory: БД) — итоговый критерий качества, отдельный от точечных тестов на
+// каждый эндпоинт в соседних файлах.
 import { describe, expect, it } from "vitest";
 import { buildApp } from "../src/app.js";
 
 const owner = "owner@example.com";
-const eventTypesUrl = `/api/owners/${encodeURIComponent(owner)}/event-types`;
+const enc = encodeURIComponent(owner);
+const availabilityUrl = (date: string) => `/api/owners/${enc}/availability/${date}`;
+const slotsUrl = (duration: number) => `/api/owners/${enc}/slots?duration=${duration}`;
+const bookingsUrl = `/api/owners/${enc}/bookings`;
+const meetingsUrl = `/api/owners/${enc}/meetings`;
 
-const validEventType = {
-  name: "Знакомство",
-  description: "Первый созвон: знакомимся и обсуждаем идеи",
-  duration: 30,
-};
-
-// "Сейчас" зафиксировано на 09:47 — ближайшая точка сетки :00/:30 впереди это 10:00.
 const now = new Date("2024-01-10T09:47:00.000Z");
-const firstSlot = "2024-01-10T10:00:00.000Z";
-// Окно — 14 суток от полуночи UTC текущих суток: последний слот внутри окна —
-// 23:30 накануне границы, граница (полночь) уже не входит.
-const lastSlotInWindow = "2024-01-23T23:30:00.000Z";
-const firstSlotOutsideWindow = "2024-01-24T00:00:00.000Z";
+const day = "2024-01-11";
+const iso = (time: string) => `${day}T${time}:00.000Z`;
 
-const validGuest = { guestName: "Гость", guestEmail: "guest@example.com" };
+const guest = { guestName: "Гость", guestEmail: "guest@example.com" };
 
-function bookingsUrl(eventTypeId: number): string {
-  return `${eventTypesUrl}/${eventTypeId}/bookings`;
-}
+// Рабочий день с обедом: 11:00–13:00 и 14:00–18:00.
+const workday = [
+  { start: iso("11:00"), end: iso("13:00") },
+  { start: iso("14:00"), end: iso("18:00") },
+];
 
-function slotsUrl(eventTypeId: number): string {
-  return `${eventTypesUrl}/${eventTypeId}/slots`;
-}
+const build = () => buildApp({ dbPath: ":memory:", clock: () => now });
+const at = (slots: { start: string }[]) => slots.map((s) => s.start.slice(11, 16));
 
-const meetingsUrl = `/api/owners/${encodeURIComponent(owner)}/meetings`;
+describe("Полный сценарий: доступность → лестница → бронь → встречи → защита дня", () => {
+  it("1. владелец объявляет два интервала — они возвращаются ему целиком", async () => {
+    const app = await build();
 
-describe("Полный сценарный набор: создание типа → гостевой список → слоты → бронь → встречи владельца", () => {
-  it("1. владелец создаёт тип встречи — он появляется в гостевом списке типов", async () => {
-    const app = await buildApp({ dbPath: ":memory:", clock: () => now });
-
-    const created = await app.inject({
-      method: "POST",
-      url: eventTypesUrl,
-      payload: validEventType,
+    const saved = await app.inject({
+      method: "PUT",
+      url: availabilityUrl(day),
+      payload: { intervals: workday },
     });
-    expect(created.statusCode).toBe(201);
-    const eventTypeId = created.json().id as number;
+    expect(saved.statusCode).toBe(200);
 
-    const guestList = await app.inject({ method: "GET", url: eventTypesUrl });
-    expect(guestList.statusCode).toBe(200);
-    expect(guestList.json()).toEqual([
-      { id: eventTypeId, ownerEmail: owner, ...validEventType },
-    ]);
+    const list = await app.inject({ method: "GET", url: `/api/owners/${enc}/availability` });
+    expect(list.json()).toEqual([{ date: day, intervals: workday }]);
 
     await app.close();
   });
 
-  it("2. список слотов — сетка :00/:30, обрезанная по окну, без забронированных", async () => {
-    const app = await buildApp({ dbPath: ":memory:", clock: () => now });
-    const created = await app.inject({
-      method: "POST",
-      url: eventTypesUrl,
-      payload: validEventType,
-    });
-    const eventTypeId = created.json().id as number;
-
-    const before = await app.inject({ method: "GET", url: slotsUrl(eventTypeId) });
-    const slotsBefore = before.json() as string[];
-    expect(slotsBefore[0]).toBe(firstSlot);
-    expect(slotsBefore.at(-1)).toBe(lastSlotInWindow);
-    expect(slotsBefore).not.toContain(firstSlotOutsideWindow);
-
+  it("2. лестница гостя повторяет интервалы и рвётся на обеде", async () => {
+    const app = await build();
     await app.inject({
-      method: "POST",
-      url: bookingsUrl(eventTypeId),
-      payload: { ...validGuest, start: firstSlot },
+      method: "PUT",
+      url: availabilityUrl(day),
+      payload: { intervals: workday },
     });
 
-    const after = await app.inject({ method: "GET", url: slotsUrl(eventTypeId) });
-    expect(after.json()).not.toContain(firstSlot);
+    const slots = (await app.inject({ method: "GET", url: slotsUrl(45) })).json();
+    // Обед реально разрывает лестницу: 12:30–13:15 не предлагается.
+    expect(at(slots)).toEqual([
+      "11:00",
+      "11:45",
+      "14:00",
+      "14:45",
+      "15:30",
+      "16:15",
+      "17:00",
+    ]);
+    expect(slots.every((slot: { status: string }) => slot.status === "free")).toBe(true);
 
     await app.close();
   });
 
-  it("3. гость бронирует слот — встреча появляется в списке владельца", async () => {
-    const app = await buildApp({ dbPath: ":memory:", clock: () => now });
-    const created = await app.inject({
-      method: "POST",
-      url: eventTypesUrl,
-      payload: validEventType,
+  it("3. гость бронирует ячейку в середине — соседние остаются свободными", async () => {
+    const app = await build();
+    await app.inject({
+      method: "PUT",
+      url: availabilityUrl(day),
+      payload: { intervals: workday },
     });
-    const eventTypeId = created.json().id as number;
 
     const booked = await app.inject({
       method: "POST",
-      url: bookingsUrl(eventTypeId),
-      payload: { ...validGuest, start: firstSlot },
+      url: bookingsUrl,
+      payload: { ...guest, start: iso("14:45"), durationMinutes: 45 },
     });
     expect(booked.statusCode).toBe(201);
-    const booking = booked.json();
+    expect(booked.json().end).toBe(iso("15:30"));
 
-    const meetings = await app.inject({ method: "GET", url: meetingsUrl });
-    expect(meetings.statusCode).toBe(200);
-    expect(meetings.json()).toEqual([
+    const slots = (await app.inject({ method: "GET", url: slotsUrl(45) })).json();
+    const byTime = Object.fromEntries(
+      slots.map((slot: { start: string; status: string }) => [
+        slot.start.slice(11, 16),
+        slot.status,
+      ]),
+    );
+    expect(byTime).toMatchObject({
+      "14:00": "free",
+      "14:45": "busy",
+      "15:30": "free",
+    });
+
+    await app.close();
+  });
+
+  it("4. занятость видна и на других длительностях — через пересечение", async () => {
+    const app = await build();
+    await app.inject({
+      method: "PUT",
+      url: availabilityUrl(day),
+      payload: { intervals: workday },
+    });
+    await app.inject({
+      method: "POST",
+      url: bookingsUrl,
+      payload: { ...guest, start: iso("14:45"), durationMinutes: 45 },
+    });
+
+    for (const duration of [15, 30]) {
+      const slots = (await app.inject({ method: "GET", url: slotsUrl(duration) })).json();
+      const busy = slots.filter((slot: { status: string }) => slot.status === "busy");
+      expect(busy.length).toBeGreaterThan(0);
+      // Всё занятое лежит внутри 14:45–15:30 и ничего не торчит наружу.
+      for (const slot of busy) {
+        expect(slot.start >= iso("14:30")).toBe(true);
+        expect(slot.end <= iso("15:45")).toBe(true);
+      }
+    }
+
+    await app.close();
+  });
+
+  it("5. владелец видит встречу в своём списке", async () => {
+    const app = await build();
+    await app.inject({
+      method: "PUT",
+      url: availabilityUrl(day),
+      payload: { intervals: workday },
+    });
+    await app.inject({
+      method: "POST",
+      url: bookingsUrl,
+      payload: { ...guest, start: iso("14:45"), durationMinutes: 45 },
+    });
+
+    const meetings = (await app.inject({ method: "GET", url: meetingsUrl })).json();
+    expect(meetings).toEqual([
       {
-        id: booking.id,
-        eventTypeId,
-        eventTypeName: validEventType.name,
+        id: expect.any(Number),
         ownerEmail: owner,
-        start: booking.start,
-        end: booking.end,
-        guestName: validGuest.guestName,
-        guestEmail: validGuest.guestEmail,
+        start: iso("14:45"),
+        end: iso("15:30"),
+        durationMinutes: 45,
+        guestName: "Гость",
+        guestEmail: "guest@example.com",
       },
     ]);
 
     await app.close();
   });
 
-  it("4. пересечение брони — 409, включая другой тип встречи; касание границ разрешено", async () => {
-    const app = await buildApp({ dbPath: ":memory:", clock: () => now });
-    const first = await app.inject({
-      method: "POST",
-      url: eventTypesUrl,
-      payload: validEventType,
+  it("6. второй гость на ту же ячейку получает 409", async () => {
+    const app = await build();
+    await app.inject({
+      method: "PUT",
+      url: availabilityUrl(day),
+      payload: { intervals: workday },
     });
-    const second = await app.inject({
-      method: "POST",
-      url: eventTypesUrl,
-      payload: { ...validEventType, name: "Карьерный разбор" },
-    });
-    const firstId = first.json().id as number;
-    const secondId = second.json().id as number;
-
-    // Занятый интервал [11:00, 11:30) — с запасом от "сейчас" (09:47), чтобы
-    // соседний слот ДО него (10:30) не попал под запрет бронирования прошлого.
-    const occupiedStart = "2024-01-10T11:00:00.000Z";
     await app.inject({
       method: "POST",
-      url: bookingsUrl(firstId),
-      payload: { ...validGuest, start: occupiedStart },
+      url: bookingsUrl,
+      payload: { ...guest, start: iso("14:45"), durationMinutes: 45 },
     });
 
-    const sameTypeOverlap = await app.inject({
+    const second = await app.inject({
       method: "POST",
-      url: bookingsUrl(firstId),
-      payload: { ...validGuest, start: occupiedStart },
+      url: bookingsUrl,
+      payload: {
+        guestName: "Второй",
+        guestEmail: "second@example.com",
+        start: iso("14:45"),
+        durationMinutes: 45,
+      },
     });
-    expect(sameTypeOverlap.statusCode).toBe(409);
-
-    const crossTypeOverlap = await app.inject({
-      method: "POST",
-      url: bookingsUrl(secondId),
-      payload: { ...validGuest, start: occupiedStart },
-    });
-    expect(crossTypeOverlap.statusCode).toBe(409);
-
-    // Соседние слоты, лишь касающиеся границ занятого [11:00, 11:30) — разрешены
-    // с обеих сторон: конец соседнего совпадает с началом занятого, и наоборот.
-    const touchingBeforeOccupied = await app.inject({
-      method: "POST",
-      url: bookingsUrl(firstId),
-      payload: { ...validGuest, start: "2024-01-10T10:30:00.000Z" },
-    });
-    expect(touchingBeforeOccupied.statusCode).toBe(201);
-
-    const touchingAfterOccupied = await app.inject({
-      method: "POST",
-      url: bookingsUrl(firstId),
-      payload: { ...validGuest, start: "2024-01-10T11:30:00.000Z" },
-    });
-    expect(touchingAfterOccupied.statusCode).toBe(201);
+    expect(second.statusCode).toBe(409);
 
     await app.close();
   });
 
-  it("5. границы окна бронирования — прошлое отклонено, последний слот разрешён, первый за окном отклонён", async () => {
-    const app = await buildApp({ dbPath: ":memory:", clock: () => now });
-    const created = await app.inject({
-      method: "POST",
-      url: eventTypesUrl,
-      payload: validEventType,
+  it("7. сужение дня под бронью — 409 с перечнем встреч; расширение проходит", async () => {
+    const app = await build();
+    await app.inject({
+      method: "PUT",
+      url: availabilityUrl(day),
+      payload: { intervals: workday },
     });
-    const eventTypeId = created.json().id as number;
+    await app.inject({
+      method: "POST",
+      url: bookingsUrl,
+      payload: { ...guest, start: iso("14:45"), durationMinutes: 45 },
+    });
 
-    const past = await app.inject({
-      method: "POST",
-      url: bookingsUrl(eventTypeId),
-      payload: { ...validGuest, start: "2024-01-10T09:30:00.000Z" },
+    const narrowed = await app.inject({
+      method: "PUT",
+      url: availabilityUrl(day),
+      payload: { intervals: [{ start: iso("11:00"), end: iso("13:00") }] },
     });
-    expect(past.statusCode).toBe(422);
+    expect(narrowed.statusCode).toBe(409);
+    expect(narrowed.json().meetings).toEqual([
+      { start: iso("14:45"), end: iso("15:30"), guestName: "Гость" },
+    ]);
 
-    const lastInWindow = await app.inject({
-      method: "POST",
-      url: bookingsUrl(eventTypeId),
-      payload: { ...validGuest, start: lastSlotInWindow },
+    const widened = await app.inject({
+      method: "PUT",
+      url: availabilityUrl(day),
+      payload: { intervals: [{ start: iso("09:00"), end: iso("20:00") }] },
     });
-    expect(lastInWindow.statusCode).toBe(201);
-
-    const firstOutside = await app.inject({
-      method: "POST",
-      url: bookingsUrl(eventTypeId),
-      payload: { ...validGuest, start: firstSlotOutsideWindow },
-    });
-    expect(firstOutside.statusCode).toBe(422);
+    expect(widened.statusCode).toBe(200);
 
     await app.close();
   });
 
-  it("6. 422 на некорректный ввод, 404 на неизвестный тип встречи", async () => {
-    const app = await buildApp({ dbPath: ":memory:", clock: () => now });
-
-    const invalidDuration = await app.inject({
-      method: "POST",
-      url: eventTypesUrl,
-      payload: { ...validEventType, duration: 7 },
+  it("8. края: прошедшие ячейки не предлагаются, дата вне окна отвергается", async () => {
+    const app = await buildApp({
+      dbPath: ":memory:",
+      clock: () => new Date(`${day}T15:00:00.000Z`),
     });
-    expect(invalidDuration.statusCode).toBe(422);
-
-    const durationOutOfRange = await app.inject({
-      method: "POST",
-      url: eventTypesUrl,
-      payload: { ...validEventType, duration: 255 },
+    await app.inject({
+      method: "PUT",
+      url: availabilityUrl(day),
+      payload: { intervals: workday },
     });
-    expect(durationOutOfRange.statusCode).toBe(422);
 
-    const emptyName = await app.inject({
-      method: "POST",
-      url: eventTypesUrl,
-      payload: { ...validEventType, name: "" },
-    });
-    expect(emptyName.statusCode).toBe(422);
+    const slots = (await app.inject({ method: "GET", url: slotsUrl(45) })).json();
+    expect(at(slots)).toEqual(["15:30", "16:15", "17:00"]);
 
-    const created = await app.inject({
-      method: "POST",
-      url: eventTypesUrl,
-      payload: validEventType,
+    const tooFar = await app.inject({
+      method: "PUT",
+      url: availabilityUrl("2024-05-01"),
+      payload: { intervals: [] },
     });
-    const eventTypeId = created.json().id as number;
+    expect(tooFar.statusCode).toBe(422);
 
-    const invalidGuestEmail = await app.inject({
-      method: "POST",
-      url: bookingsUrl(eventTypeId),
-      payload: { guestName: "Гость", guestEmail: "not-an-email", start: firstSlot },
-    });
-    expect(invalidGuestEmail.statusCode).toBe(422);
+    await app.close();
+  });
 
-    const unknownEventType = await app.inject({
+  it("9. формы ошибок: 422 на кривой запрос, 404 на владельца без доступности", async () => {
+    const app = await build();
+
+    const noAvailability = await app.inject({
       method: "POST",
-      url: bookingsUrl(eventTypeId + 1000),
-      payload: { ...validGuest, start: firstSlot },
+      url: bookingsUrl,
+      payload: { ...guest, start: iso("11:00"), durationMinutes: 30 },
     });
-    expect(unknownEventType.statusCode).toBe(404);
+    expect(noAvailability.statusCode).toBe(404);
+    expect(noAvailability.json()).toHaveProperty("message");
+
+    await app.inject({
+      method: "PUT",
+      url: availabilityUrl(day),
+      payload: { intervals: workday },
+    });
+
+    const badStart = await app.inject({
+      method: "POST",
+      url: bookingsUrl,
+      payload: { ...guest, start: iso("11:20"), durationMinutes: 30 },
+    });
+    expect(badStart.statusCode).toBe(422);
+    expect(badStart.json().errors[0]).toMatchObject({ path: "start" });
 
     await app.close();
   });
