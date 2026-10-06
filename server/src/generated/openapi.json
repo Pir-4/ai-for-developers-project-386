@@ -102,6 +102,57 @@
           }
         }
       }
+    },
+    "/owners/{ownerEmail}/event-types/{id}/slots": {
+      "get": {
+        "operationId": "listSlots",
+        "description": "Free slot start times for this event type, UTC ISO 8601, on the 30-minute\ngrid (`:00`/`:30`), bounded to the booking window and excluding the\nowner's booked intervals.",
+        "parameters": [
+          {
+            "name": "ownerEmail",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The request has succeeded.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "format": "date-time"
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "404 — the referenced resource does not exist.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotFoundError"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -205,6 +256,19 @@
           }
         },
         "description": "Liveness probe response."
+      },
+      "NotFoundError": {
+        "type": "object",
+        "required": [
+          "message"
+        ],
+        "properties": {
+          "message": {
+            "type": "string",
+            "description": "Human-readable summary."
+          }
+        },
+        "description": "The referenced resource does not exist."
       },
       "ValidationError": {
         "type": "object",

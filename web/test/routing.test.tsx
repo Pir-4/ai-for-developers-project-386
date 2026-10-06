@@ -142,7 +142,12 @@ describe('клиентские роуты', () => {
     expect(
       await screen.findByRole('heading', { level: 3, name: 'Знакомство' }),
     ).toBeInTheDocument()
-    expect(screen.getByText(ru.guest.soon)).toBeInTheDocument()
+    expect(
+      screen.getByRole('heading', { level: 3, name: ru.guest.dayLabel }),
+    ).toBeInTheDocument()
+    expect(
+      screen.getByRole('heading', { level: 3, name: ru.guest.timeLabel }),
+    ).toBeInTheDocument()
   })
 
   it('/book/:email/:id: несуществующий тип — notFound', async () => {

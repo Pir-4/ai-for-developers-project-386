@@ -4,14 +4,16 @@ import {
   createCreateEventTypeHandler,
   createListEventTypesHandler,
 } from "./event-types.js";
+import { createListSlotsHandler } from "./slots.js";
 
 // Один хендлер на operationId из контракта (contract/openapi.yaml);
 // fastify-openapi-glue связывает операцию с хендлером по ключу.
 // Хендлерам нужна база — поэтому собираем объект фабрикой.
-export function createServiceHandlers(db: DatabaseSync) {
+export function createServiceHandlers(db: DatabaseSync, clock: () => Date) {
   return {
     health,
     createEventType: createCreateEventTypeHandler(db),
     listEventTypes: createListEventTypesHandler(db),
+    listSlots: createListSlotsHandler(db, clock),
   };
 }

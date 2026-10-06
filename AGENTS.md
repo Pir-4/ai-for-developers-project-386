@@ -24,11 +24,12 @@ Behavior reference — video in README: https://files.hexlet.app/a/2ipc5m
 - `contract/` — the API contract: TypeSpec sources (`main.tsp`, `tspconfig.yaml`). `make generate` emits the
   OpenAPI 3.0 spec (`contract/openapi.yaml`), the JSON copy for the server runtime
   (`server/src/generated/openapi.json`) and `openapi-typescript` types for server and web (`*/src/generated/schema.d.ts`).
-- `server/` — Fastify 5. `src/app.ts` — `buildApp({ dbPath })`: `fastify-openapi-glue` registers routes and request
+- `server/` — Fastify 5. `src/app.ts` — `buildApp({ dbPath, clock })` (`clock` defaults to system time;
+  tests inject a fixed one): `fastify-openapi-glue` registers routes and request
   validation from `src/generated/openapi.json` under the `/api` prefix (validation failures → 422 in the contract's
   `ValidationError` shape); `src/db/` — `node:sqlite` + an ordered-SQL migration runner (`PRAGMA user_version`,
   one transaction at startup; `.sql` files in `src/db/migrations`, copied to `dist` by the build);
-  `src/services/` — hand-written handlers, one per operationId, assembled by `createServiceHandlers(db)` in
+  `src/services/` — hand-written handlers, one per operationId, assembled by `createServiceHandlers(db, clock)` in
   `src/services/index.ts`, typed with the generated types. `src/index.ts` — startup on `PORT ?? 8000`.
   Tests — Vitest via `app.inject()` with `dbPath: ":memory:"`, located in `server/test/`.
 - `web/` — Vite 6 + React 19 + Mantine 9 + react-router (client routes `/`, `/login`, `/owner/:email`,

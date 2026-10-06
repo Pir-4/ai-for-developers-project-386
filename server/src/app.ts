@@ -1,5 +1,6 @@
 import { existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
+import type { DatabaseSync } from "node:sqlite";
 import Fastify, {
   type FastifyInstance,
   type FastifyReply,
@@ -17,6 +18,14 @@ const webDist = fileURLToPath(new URL("../../web/dist", import.meta.url));
 export interface BuildAppOptions {
   /** Файл SQLite-базы. По умолчанию `<repo>/data/app.db`; тесты передают `":memory:"`. */
   dbPath?: string;
+  /**
+   * Уже открытая БД — вместо открытия по `dbPath`. Нужна тестам, которым
+   * негде иначе завести фикстуры (например, бронь) до появления создающего
+   * эндпоинта; владение (закрытие при `onClose`) переходит к `buildApp`.
+   */
+  db?: DatabaseSync;
+  /** Текущий момент. По умолчанию системное время; тесты передают фиксированный. */
+  clock?: () => Date;
 }
 
 // Ошибка валидации запроса (Ajv через fastify-openapi-glue) → 422 в форме ValidationError из контракта.
@@ -48,15 +57,17 @@ export async function buildApp(
   const app = Fastify({ logger: true });
 
   // SQLite: база открывается и мигрируется на старте, провал — провал старта.
-  const db = openDatabase(options.dbPath);
+  const db = options.db ?? openDatabase(options.dbPath);
   app.addHook("onClose", async () => db.close());
+
+  const clock = options.clock ?? (() => new Date());
 
   app.setErrorHandler(validationErrorHandler);
 
   // Роуты и валидация — из контракта (сгенерированная спека), хендлеры — services/.
   await app.register(openapiGlue, {
     specification: openapiSpec,
-    serviceHandlers: createServiceHandlers(db),
+    serviceHandlers: createServiceHandlers(db, clock),
     prefix: "/api",
   });
 

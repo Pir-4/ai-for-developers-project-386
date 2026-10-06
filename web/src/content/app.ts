@@ -33,8 +33,11 @@ export type OwnerText = {
 
 export type GuestText = {
   title: string
-  soon: string
   notFound: string
+  dayLabel: string
+  timeLabel: string
+  timezoneLabel: string
+  noSlotsForDay: string
 }
 
 export type GuestCatalogText = {
@@ -83,8 +86,11 @@ export const appCopy: Record<Locale, AppText> = {
     },
     guest: {
       title: 'Запись на встречу',
-      soon: 'Выбор времени появится на следующем шаге',
       notFound: 'Такой тип встречи не найден',
+      dayLabel: 'Выберите день',
+      timeLabel: 'Свободное время',
+      timezoneLabel: 'Часовой пояс',
+      noSlotsForDay: 'На этот день нет свободного времени',
     },
     guestCatalog: {
       title: 'Выберите тип встречи',
@@ -131,8 +137,11 @@ export const appCopy: Record<Locale, AppText> = {
     },
     guest: {
       title: 'Book a meeting',
-      soon: 'Time picking is coming in the next step',
       notFound: 'This event type is not found',
+      dayLabel: 'Choose a day',
+      timeLabel: 'Available times',
+      timezoneLabel: 'Time zone',
+      noSlotsForDay: 'No free times on this day',
     },
     guestCatalog: {
       title: 'Choose an event type',
