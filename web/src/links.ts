@@ -1,5 +1,5 @@
 // All navigation targets of the app in one place.
-// Client routes (react-router): /, /login, /owner/:email, /book/:email/:id.
+// Client routes (react-router): /, /login, /owner/:email, /book/:email, /book/:email/:id.
 
 export const homeHref = '/'
 
@@ -20,3 +20,7 @@ export const ownerHref = (email: string) => `/owner/${encodeURIComponent(email)}
 // The guest link of a specific event type — what the owner shares.
 export const guestHref = (email: string, id: number) =>
   `/book/${encodeURIComponent(email)}/${id}`
+
+// The guest's catalog of an owner's booking types.
+export const bookingCatalogHref = (email: string) =>
+  `/book/${encodeURIComponent(email)}`

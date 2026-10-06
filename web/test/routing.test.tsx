@@ -90,6 +90,39 @@ describe('клиентские роуты', () => {
     ).toBeInTheDocument()
   })
 
+  it('/book/:email рендерит каталог типов встреч владельца со ссылками на календарь', async () => {
+    stubFetch(() =>
+      json(200, [
+        {
+          id: 1,
+          ownerEmail: 'owner@example.com',
+          name: 'Знакомство',
+          description: 'Первый созвон',
+          duration: 30,
+        },
+      ]),
+    )
+    renderApp('/book/owner@example.com')
+    expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent(
+      ru.guestCatalog.title,
+    )
+    expect(
+      await screen.findByRole('heading', { level: 3, name: 'Знакомство' }),
+    ).toBeInTheDocument()
+    expect(screen.getByText('Первый созвон')).toBeInTheDocument()
+    expect(screen.getByText('30 мин')).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: /Знакомство/ })).toHaveAttribute(
+      'href',
+      '/book/owner%40example.com/1',
+    )
+  })
+
+  it('/book/:email: у владельца нет типов встреч — пустое состояние', async () => {
+    stubFetch()
+    renderApp('/book/owner@example.com')
+    expect(await screen.findByText(ru.guestCatalog.empty)).toBeInTheDocument()
+  })
+
   it('/book/:email/:id рендерит страницу гостя', async () => {
     stubFetch(() =>
       json(200, [
@@ -176,24 +209,28 @@ describe('вход по email (логин)', () => {
 })
 
 describe('переключатель языка на каждой странице', () => {
-  it.each(['/login', '/owner/owner@example.com', '/book/owner@example.com/1'])(
-    '%s: RU/EN переключают язык страницы',
-    async (path) => {
-      stubFetch()
-      const user = userEvent.setup()
-      renderApp(path)
+  it.each([
+    '/login',
+    '/owner/owner@example.com',
+    '/book/owner@example.com',
+    '/book/owner@example.com/1',
+  ])('%s: RU/EN переключают язык страницы', async (path) => {
+    stubFetch()
+    const user = userEvent.setup()
+    renderApp(path)
 
-      const banner = screen.getByRole('banner')
-      await user.click(within(banner).getByRole('button', { name: 'EN' }))
+    const banner = screen.getByRole('banner')
+    await user.click(within(banner).getByRole('button', { name: 'EN' }))
 
-      expect(document.documentElement).toHaveAttribute('lang', 'en')
-      expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent(
-        path.startsWith('/login')
-          ? en.login.title
-          : path.startsWith('/owner')
-            ? en.owner.title
+    expect(document.documentElement).toHaveAttribute('lang', 'en')
+    expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent(
+      path.startsWith('/login')
+        ? en.login.title
+        : path.startsWith('/owner')
+          ? en.owner.title
+          : path === '/book/owner@example.com'
+            ? en.guestCatalog.title
             : en.guest.title,
-      )
-    },
-  )
+    )
+  })
 })
