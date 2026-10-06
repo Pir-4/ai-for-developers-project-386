@@ -29,6 +29,11 @@ export type OwnerText = {
   copied: string
   empty: string
   loadError: string
+  meetingsTitle: string
+  meetingsEmpty: string
+  meetingsLoadError: string
+  guestLabel: string
+  whenLabel: string
 }
 
 export type GuestText = {
@@ -93,6 +98,11 @@ export const appCopy: Record<Locale, AppText> = {
       copied: 'Скопировано',
       empty: 'Пока нет ни одного типа встречи',
       loadError: 'Не удалось загрузить список',
+      meetingsTitle: 'Ближайшие встречи',
+      meetingsEmpty: 'Пока нет ни одной встречи',
+      meetingsLoadError: 'Не удалось загрузить встречи',
+      guestLabel: 'Гость',
+      whenLabel: 'Когда',
     },
     guest: {
       title: 'Запись на встречу',
@@ -154,6 +164,11 @@ export const appCopy: Record<Locale, AppText> = {
       copied: 'Copied',
       empty: 'No event types yet',
       loadError: 'Failed to load the list',
+      meetingsTitle: 'Upcoming meetings',
+      meetingsEmpty: 'No meetings yet',
+      meetingsLoadError: 'Failed to load meetings',
+      guestLabel: 'Guest',
+      whenLabel: 'When',
     },
     guest: {
       title: 'Book a meeting',

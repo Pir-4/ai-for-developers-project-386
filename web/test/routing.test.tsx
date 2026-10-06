@@ -4,10 +4,12 @@ import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import App from '../src/App.tsx'
 import { appCopy } from '../src/content/app.ts'
+import { landingCopy } from '../src/content/landing.ts'
 import { LocaleProvider } from '../src/i18n.tsx'
 
 const ru = appCopy.ru
 const en = appCopy.en
+const ruLanding = landingCopy.ru
 
 // Любой рендер App дергает fetch (список типов встречи) — стаб по умолчанию: пустой список.
 function stubFetch(respond: () => Response = emptyList) {
@@ -210,6 +212,51 @@ describe('вход по email (логин)', () => {
     expect(
       screen.getByRole('textbox', { name: ru.login.emailLabel }),
     ).toHaveValue('saved@example.com')
+  })
+})
+
+describe('шапка: вход в «Мои встречи»', () => {
+  it('без запомненного email показывает «Создать встречу» → /owner', () => {
+    stubFetch()
+    renderApp('/')
+    const banner = screen.getByRole('banner')
+    expect(
+      within(banner).getByRole('link', { name: ruLanding.createMeeting }),
+    ).toHaveAttribute('href', '/owner')
+    expect(
+      within(banner).queryByRole('link', { name: ruLanding.myMeetings }),
+    ).not.toBeInTheDocument()
+  })
+
+  it('с запомненным email показывает «Мои встречи» → /owner/<email>', () => {
+    stubFetch()
+    window.localStorage.setItem('owner.email', 'saved@example.com')
+    renderApp('/')
+    const banner = screen.getByRole('banner')
+    expect(
+      within(banner).getByRole('link', { name: ruLanding.myMeetings }),
+    ).toHaveAttribute('href', '/owner/saved%40example.com')
+    expect(
+      within(banner).queryByRole('link', { name: ruLanding.createMeeting }),
+    ).not.toBeInTheDocument()
+  })
+
+  it('после входа по email шапка сразу переключается на «Мои встречи»', async () => {
+    stubFetch()
+    const user = userEvent.setup()
+    renderApp('/login')
+    await user.type(
+      screen.getByRole('textbox', { name: ru.login.emailLabel }),
+      'owner@example.com',
+    )
+    await user.click(screen.getByRole('button', { name: ru.login.submit }))
+
+    const banner = screen.getByRole('banner')
+    expect(
+      await within(banner).findByRole('link', {
+        name: ruLanding.myMeetings,
+      }),
+    ).toHaveAttribute('href', '/owner/owner%40example.com')
   })
 })
 

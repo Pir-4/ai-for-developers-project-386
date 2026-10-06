@@ -81,6 +81,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/owners/{ownerEmail}/meetings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description List the owner's upcoming meetings (`end >= now`), ordered by start ascending. */
+        get: operations["listMeetings"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -181,6 +198,37 @@ export interface components {
              * @enum {string}
              */
             status: "ok";
+        };
+        /** @description One of the owner's meetings: a booking enriched with its event type's name. */
+        Meeting: {
+            /**
+             * Format: int32
+             * @description Server-assigned identifier of the booking.
+             */
+            id: number;
+            /**
+             * Format: int32
+             * @description The event type this meeting is for.
+             */
+            eventTypeId: number;
+            /** @description Name of the event type, shown in the row. */
+            eventTypeName: string;
+            /** @description Email of the owner this meeting belongs to. */
+            ownerEmail: string;
+            /**
+             * Format: date-time
+             * @description Start of the meeting, UTC ISO 8601.
+             */
+            start: string;
+            /**
+             * Format: date-time
+             * @description End of the meeting, UTC ISO 8601.
+             */
+            end: string;
+            /** @description The guest's name. */
+            guestName: string;
+            /** @description The guest's email. */
+            guestEmail: string;
         };
         /** @description The referenced resource does not exist. */
         NotFoundError: {
@@ -362,6 +410,28 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["NotFoundError"];
+                };
+            };
+        };
+    };
+    listMeetings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                ownerEmail: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The request has succeeded. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Meeting"][];
                 };
             };
         };

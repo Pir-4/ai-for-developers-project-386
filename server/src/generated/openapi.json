@@ -230,6 +230,37 @@
           }
         }
       }
+    },
+    "/owners/{ownerEmail}/meetings": {
+      "get": {
+        "operationId": "listMeetings",
+        "description": "List the owner's upcoming meetings (`end >= now`), ordered by start ascending.",
+        "parameters": [
+          {
+            "name": "ownerEmail",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The request has succeeded.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Meeting"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -424,6 +455,58 @@
           }
         },
         "description": "Liveness probe response."
+      },
+      "Meeting": {
+        "type": "object",
+        "required": [
+          "id",
+          "eventTypeId",
+          "eventTypeName",
+          "ownerEmail",
+          "start",
+          "end",
+          "guestName",
+          "guestEmail"
+        ],
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Server-assigned identifier of the booking."
+          },
+          "eventTypeId": {
+            "type": "integer",
+            "format": "int32",
+            "description": "The event type this meeting is for."
+          },
+          "eventTypeName": {
+            "type": "string",
+            "description": "Name of the event type, shown in the row."
+          },
+          "ownerEmail": {
+            "type": "string",
+            "description": "Email of the owner this meeting belongs to."
+          },
+          "start": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Start of the meeting, UTC ISO 8601."
+          },
+          "end": {
+            "type": "string",
+            "format": "date-time",
+            "description": "End of the meeting, UTC ISO 8601."
+          },
+          "guestName": {
+            "type": "string",
+            "description": "The guest's name."
+          },
+          "guestEmail": {
+            "type": "string",
+            "description": "The guest's email."
+          }
+        },
+        "description": "One of the owner's meetings: a booking enriched with its event type's name."
       },
       "NotFoundError": {
         "type": "object",

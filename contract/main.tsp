@@ -180,3 +180,28 @@ op createBooking(
   | UnprocessableEntityResponse
   | NotFoundResponse
   | ConflictResponse;
+
+/** One of the owner's meetings: a booking enriched with its event type's name. */
+model Meeting {
+  /** Server-assigned identifier of the booking. */
+  id: int32;
+  /** The event type this meeting is for. */
+  eventTypeId: int32;
+  /** Name of the event type, shown in the row. */
+  eventTypeName: string;
+  /** Email of the owner this meeting belongs to. */
+  ownerEmail: string;
+  /** Start of the meeting, UTC ISO 8601. */
+  start: utcDateTime;
+  /** End of the meeting, UTC ISO 8601. */
+  end: utcDateTime;
+  /** The guest's name. */
+  guestName: string;
+  /** The guest's email. */
+  guestEmail: string;
+}
+
+/** List the owner's upcoming meetings (`end >= now`), ordered by start ascending. */
+@route("/owners/{ownerEmail}/meetings")
+@get
+op listMeetings(@path ownerEmail: string): Meeting[];

@@ -17,11 +17,14 @@ import {
   ApiValidationError,
   createEventType,
   listEventTypes,
+  listMeetings,
   type CreateEventTypeBody,
   type EventType,
+  type Meeting,
 } from '../api.ts'
 import { useAppText } from '../i18n.tsx'
 import { guestHref } from '../links.ts'
+import { formatLocalDateTime, localTimezone } from '../localTime.ts'
 
 type FieldName = 'name' | 'description' | 'duration'
 type FieldErrors = Partial<Record<FieldName | 'form', string>>
@@ -33,6 +36,10 @@ const DURATION_MIN = 15
 const DURATION_MAX = 240
 const DURATION_STEP = 15
 const DURATION_DEFAULT = 30
+
+function durationMinutes(start: string, end: string): number {
+  return Math.round((Date.parse(end) - Date.parse(start)) / 60000)
+}
 
 /** duration из NumberInput либо валидно, либо null (правила — как в контракте). */
 function parseDuration(value: number | string): number | null {
@@ -57,6 +64,9 @@ export function OwnerPage() {
   const [items, setItems] = useState<EventType[]>([])
   const [listFailed, setListFailed] = useState(false)
 
+  const [meetings, setMeetings] = useState<Meeting[]>([])
+  const [meetingsFailed, setMeetingsFailed] = useState(false)
+
   const [name, setName] = useState('')
   const [description, setDescription] = useState('')
   const [duration, setDuration] = useState<number | string>(DURATION_DEFAULT)
@@ -71,6 +81,20 @@ export function OwnerPage() {
       })
       .catch(() => {
         if (!cancelled) setListFailed(true)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [ownerEmail])
+
+  useEffect(() => {
+    let cancelled = false
+    listMeetings(ownerEmail)
+      .then((loaded) => {
+        if (!cancelled) setMeetings(loaded)
+      })
+      .catch(() => {
+        if (!cancelled) setMeetingsFailed(true)
       })
     return () => {
       cancelled = true
@@ -132,6 +156,27 @@ export function OwnerPage() {
     <Container size="sm" py="xl">
       <Stack gap="xl">
         <Title order={1}>{t.title}</Title>
+
+        <Box component="section">
+          <Stack gap="md">
+            <Title order={2}>{t.meetingsTitle}</Title>
+            {meetingsFailed ? (
+              <Text c="dimmed" size="sm">
+                {t.meetingsLoadError}
+              </Text>
+            ) : meetings.length === 0 ? (
+              <Text c="dimmed" size="sm">
+                {t.meetingsEmpty}
+              </Text>
+            ) : (
+              <Stack gap="md">
+                {meetings.map((meeting) => (
+                  <MeetingCard key={meeting.id} meeting={meeting} />
+                ))}
+              </Stack>
+            )}
+          </Stack>
+        </Box>
 
         <Box component="section">
           <Stack gap="lg" maw={480}>
@@ -202,6 +247,29 @@ export function OwnerPage() {
         </Box>
       </Stack>
     </Container>
+  )
+}
+
+function MeetingCard({ meeting }: { meeting: Meeting }) {
+  const t = useAppText().owner
+  const shared = useAppText().shared
+  const timezone = localTimezone()
+
+  return (
+    <Card component="article" withBorder p="lg">
+      <Stack gap="xs">
+        <Title order={3}>{meeting.eventTypeName}</Title>
+        <Text size="sm">
+          {`${t.whenLabel}: ${formatLocalDateTime(meeting.start)} (${timezone})`}
+        </Text>
+        <Text c="dimmed" size="sm">
+          {durationMinutes(meeting.start, meeting.end)} {shared.minutesSuffix}
+        </Text>
+        <Text size="sm">
+          {`${t.guestLabel}: ${meeting.guestName} <${meeting.guestEmail}>`}
+        </Text>
+      </Stack>
+    </Card>
   )
 }
 
