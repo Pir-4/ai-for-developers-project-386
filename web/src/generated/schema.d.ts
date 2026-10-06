@@ -43,6 +43,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/owners/{ownerEmail}/event-types/{id}/bookings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Book a slot for the event type. */
+        post: operations["createBooking"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/owners/{ownerEmail}/event-types/{id}/slots": {
         parameters: {
             query?: never;
@@ -68,6 +85,57 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /** @description A reservation of a slot for an event type, holding the guest's name and email. */
+        Booking: {
+            /**
+             * Format: int32
+             * @description Server-assigned identifier.
+             */
+            id: number;
+            /**
+             * Format: int32
+             * @description The event type this booking is for.
+             */
+            eventTypeId: number;
+            /** @description Email of the owner this booking belongs to. */
+            ownerEmail: string;
+            /**
+             * Format: date-time
+             * @description Start of the booked interval, UTC ISO 8601.
+             */
+            start: string;
+            /**
+             * Format: date-time
+             * @description End of the booked interval, UTC ISO 8601 (start + the event type's duration).
+             */
+            end: string;
+            /** @description The guest's name. */
+            guestName: string;
+            /** @description The guest's email. */
+            guestEmail: string;
+            /**
+             * Format: date-time
+             * @description When the booking was created, UTC ISO 8601.
+             */
+            createdAt: string;
+        };
+        /** @description The requested interval is already booked. */
+        ConflictError: {
+            /** @description Human-readable summary. */
+            message: string;
+        };
+        /** @description Body for booking a slot. */
+        CreateBookingBody: {
+            /** @description The guest's name (trimmed server-side to 1–100 characters; raw length is not itself validated). */
+            guestName: string;
+            /** @description The guest's email. */
+            guestEmail: string;
+            /**
+             * Format: date-time
+             * @description The slot's start time, UTC ISO 8601: must fall on the :00/:30 grid, not be in the past, and lie within the booking window.
+             */
+            start: string;
+        };
         /** @description Body for creating an event type. */
         CreateEventTypeBody: {
             /** @description Short display name shown to the owner and the guest. */
@@ -199,6 +267,60 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["EventType"];
+                };
+            };
+            /** @description 422 — the request failed validation. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ValidationError"];
+                };
+            };
+        };
+    };
+    createBooking: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                ownerEmail: string;
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateBookingBody"];
+            };
+        };
+        responses: {
+            /** @description 201 — the created booking. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Booking"];
+                };
+            };
+            /** @description 404 — the referenced resource does not exist. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotFoundError"];
+                };
+            };
+            /** @description 409 — the requested interval overlaps an existing booking of the owner. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConflictError"];
                 };
             };
             /** @description 422 — the request failed validation. */

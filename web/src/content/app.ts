@@ -38,6 +38,16 @@ export type GuestText = {
   timeLabel: string
   timezoneLabel: string
   noSlotsForDay: string
+  nameLabel: string
+  nameRequired: string
+  nameTooLong: string
+  emailLabel: string
+  emailInvalid: string
+  submit: string
+  slotTaken: string
+  confirmedTitle: string
+  guestLabel: string
+  whenLabel: string
 }
 
 export type GuestCatalogText = {
@@ -91,6 +101,16 @@ export const appCopy: Record<Locale, AppText> = {
       timeLabel: 'Свободное время',
       timezoneLabel: 'Часовой пояс',
       noSlotsForDay: 'На этот день нет свободного времени',
+      nameLabel: 'Ваше имя',
+      nameRequired: 'Введите имя',
+      nameTooLong: 'Не длиннее 100 символов',
+      emailLabel: 'Email',
+      emailInvalid: 'Введите корректный email',
+      submit: 'Забронировать',
+      slotTaken: 'Этот слот только что заняли — выберите другое время',
+      confirmedTitle: 'Встреча подтверждена',
+      guestLabel: 'Гость',
+      whenLabel: 'Когда',
     },
     guestCatalog: {
       title: 'Выберите тип встречи',
@@ -142,6 +162,16 @@ export const appCopy: Record<Locale, AppText> = {
       timeLabel: 'Available times',
       timezoneLabel: 'Time zone',
       noSlotsForDay: 'No free times on this day',
+      nameLabel: 'Your name',
+      nameRequired: 'Enter a name',
+      nameTooLong: 'At most 100 characters',
+      emailLabel: 'Email',
+      emailInvalid: 'Enter a valid email',
+      submit: 'Book',
+      slotTaken: 'This slot was just taken — pick another time',
+      confirmedTitle: 'Meeting confirmed',
+      guestLabel: 'Guest',
+      whenLabel: 'When',
     },
     guestCatalog: {
       title: 'Choose an event type',
