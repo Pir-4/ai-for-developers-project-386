@@ -1,14 +1,15 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react'
+import { appCopy, type AppText } from './content/app.ts'
 import { defaultLocale, landingCopy, type Locale } from './content/landing.ts'
 
 const STORAGE_KEY = 'ui.locale'
 
-type LandingLocaleValue = {
+type LocaleValue = {
   locale: Locale
   setLocale: (locale: Locale) => void
 }
 
-const LandingLocaleContext = createContext<LandingLocaleValue>({
+const LocaleContext = createContext<LocaleValue>({
   locale: defaultLocale,
   setLocale: () => {},
 })
@@ -23,7 +24,9 @@ function readStoredLocale(): Locale {
   }
 }
 
-export function LandingLocaleProvider({ children }: { children: ReactNode }) {
+// The app-wide RU/EN locale: sets <html lang>, persists the choice in
+// localStorage['ui.locale'], restores it on mount, falls back to RU.
+export function LocaleProvider({ children }: { children: ReactNode }) {
   const [locale, setLocale] = useState<Locale>(readStoredLocale)
 
   useEffect(() => {
@@ -36,17 +39,24 @@ export function LandingLocaleProvider({ children }: { children: ReactNode }) {
   }, [locale])
 
   return (
-    <LandingLocaleContext.Provider value={{ locale, setLocale }}>
+    <LocaleContext.Provider value={{ locale, setLocale }}>
       {children}
-    </LandingLocaleContext.Provider>
+    </LocaleContext.Provider>
   )
 }
 
-export function useLandingLocale() {
-  return useContext(LandingLocaleContext)
+export function useLocale() {
+  return useContext(LocaleContext)
 }
 
+// Landing page copy (content/landing.ts).
 export function useLanding() {
-  const { locale } = useContext(LandingLocaleContext)
+  const { locale } = useLocale()
   return landingCopy[locale]
+}
+
+// Copy of the app pages (content/app.ts).
+export function useAppText(): AppText {
+  const { locale } = useLocale()
+  return appCopy[locale]
 }

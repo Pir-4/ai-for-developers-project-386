@@ -3,7 +3,7 @@ import { render, screen, within } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
 import App from '../src/App.tsx'
 import { landingCopy } from '../src/content/landing.ts'
-import { LandingLocaleProvider } from '../src/i18n.tsx'
+import { LocaleProvider } from '../src/i18n.tsx'
 import {
   audiencesHref,
   createMeetingHref,
@@ -75,9 +75,9 @@ const copy = {
 function renderLanding() {
   return render(
     <MantineProvider>
-      <LandingLocaleProvider>
+      <LocaleProvider>
         <App />
-      </LandingLocaleProvider>
+      </LocaleProvider>
     </MantineProvider>,
   )
 }
@@ -103,9 +103,9 @@ describe('content constants', () => {
   })
 
   it('declare the anchor contract of § 4', () => {
-    expect(howHref).toBe('#how')
-    expect(audiencesHref).toBe('#audiences')
-    expect(createMeetingHref).toBe('#cta')
+    expect(howHref).toBe('/#how')
+    expect(audiencesHref).toBe('/#audiences')
+    expect(createMeetingHref).toBe('/owner')
     expect(githubHref).toBe(
       'https://github.com/Pir-4/ai-for-developers-project-386',
     )
@@ -159,10 +159,10 @@ describe('header', () => {
     expect(banner).toHaveTextContent(copy.logo)
     expect(
       within(banner).getByRole('link', { name: copy.navHow }),
-    ).toHaveAttribute('href', '#how')
+    ).toHaveAttribute('href', '/#how')
     expect(
       within(banner).getByRole('link', { name: copy.navOwners }),
-    ).toHaveAttribute('href', '#audiences')
+    ).toHaveAttribute('href', '/#audiences')
   })
 
   it('shows the primary CTA', () => {
@@ -170,7 +170,7 @@ describe('header', () => {
     const banner = screen.getByRole('banner')
     expect(
       within(banner).getByRole('link', { name: copy.createMeeting }),
-    ).toHaveAttribute('href', '#cta')
+    ).toHaveAttribute('href', '/owner')
   })
 })
 
@@ -212,12 +212,12 @@ describe('call-to-action', () => {
     expect(section).toHaveTextContent(copy.ctaBody)
   })
 
-  it('every "Create meeting" button links to #cta', () => {
+  it('every "Create meeting" button leads to /owner', () => {
     renderLanding()
     const buttons = screen.getAllByRole('link', { name: copy.createMeeting })
     expect(buttons).toHaveLength(3)
     for (const button of buttons) {
-      expect(button).toHaveAttribute('href', '#cta')
+      expect(button).toHaveAttribute('href', '/owner')
     }
   })
 })
@@ -228,10 +228,10 @@ describe('footer', () => {
     const footer = screen.getByRole('contentinfo')
     expect(
       within(footer).getByRole('link', { name: copy.navHow }),
-    ).toHaveAttribute('href', '#how')
+    ).toHaveAttribute('href', '/#how')
     expect(
       within(footer).getByRole('link', { name: copy.navOwners }),
-    ).toHaveAttribute('href', '#audiences')
+    ).toHaveAttribute('href', '/#audiences')
   })
 
   it('opens external links safely', () => {

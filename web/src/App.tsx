@@ -1,23 +1,33 @@
+import { BrowserRouter, Navigate, Route, Routes } from 'react-router'
 import { AppShell } from '@mantine/core'
-import { AudiencesSection } from './components/AudiencesSection.tsx'
-import { CtaSection } from './components/CtaSection.tsx'
-import { HeroSection } from './components/HeroSection.tsx'
-import { HowItWorksSection } from './components/HowItWorksSection.tsx'
 import { SiteFooter } from './components/SiteFooter.tsx'
 import { SiteHeader } from './components/SiteHeader.tsx'
+import { GuestPage } from './pages/GuestPage.tsx'
+import { LandingPage } from './pages/LandingPage.tsx'
+import { LoginPage } from './pages/LoginPage.tsx'
+import { NotFoundPage } from './pages/NotFoundPage.tsx'
+import { OwnerPage } from './pages/OwnerPage.tsx'
 
+// Client routes: / — landing, /login → /owner/:email (bare /owner redirects),
+// /book/:email/:id — the guest link target.
 function App() {
   return (
-    <AppShell header={{ height: 60 }} padding="md">
-      <SiteHeader />
-      <AppShell.Main>
-        <HeroSection />
-        <HowItWorksSection />
-        <AudiencesSection />
-        <CtaSection />
-      </AppShell.Main>
-      <SiteFooter />
-    </AppShell>
+    <BrowserRouter>
+      <AppShell header={{ height: 60 }} padding="md">
+        <SiteHeader />
+        <AppShell.Main>
+          <Routes>
+            <Route path="/" element={<LandingPage />} />
+            <Route path="/login" element={<LoginPage />} />
+            <Route path="/owner" element={<Navigate to="/login" replace />} />
+            <Route path="/owner/:email" element={<OwnerPage />} />
+            <Route path="/book/:email/:id" element={<GuestPage />} />
+            <Route path="*" element={<NotFoundPage />} />
+          </Routes>
+        </AppShell.Main>
+        <SiteFooter />
+      </AppShell>
+    </BrowserRouter>
   )
 }
 

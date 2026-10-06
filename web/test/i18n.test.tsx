@@ -4,7 +4,7 @@ import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it } from 'vitest'
 import App from '../src/App.tsx'
 import { landingCopy } from '../src/content/landing.ts'
-import { LandingLocaleProvider } from '../src/i18n.tsx'
+import { LocaleProvider } from '../src/i18n.tsx'
 
 // Target English copy. Spec § 6.1 delegates exact EN wording to the constants
 // and to human review; these tests prove the rendered page switches to that
@@ -14,9 +14,9 @@ const en = landingCopy.en
 function renderLanding() {
   return render(
     <MantineProvider>
-      <LandingLocaleProvider>
+      <LocaleProvider>
         <App />
-      </LandingLocaleProvider>
+      </LocaleProvider>
     </MantineProvider>,
   )
 }
@@ -58,10 +58,10 @@ describe('language switcher (spec § 6.1)', () => {
     const banner = screen.getByRole('banner')
     expect(
       within(banner).getByRole('link', { name: en.nav.how }),
-    ).toHaveAttribute('href', '#how')
+    ).toHaveAttribute('href', '/#how')
     expect(
       within(banner).getByRole('link', { name: en.createMeeting }),
-    ).toHaveAttribute('href', '#cta')
+    ).toHaveAttribute('href', '/owner')
   })
 
   it('keeps anchor ids and hrefs unchanged across a switch', async () => {
@@ -131,7 +131,7 @@ describe('language switcher (spec § 6.1)', () => {
     })
     expect(meetingLinks).toHaveLength(3)
     for (const link of meetingLinks) {
-      expect(link).toHaveAttribute('href', '#cta')
+      expect(link).toHaveAttribute('href', '/owner')
     }
   })
 
