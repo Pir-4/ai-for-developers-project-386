@@ -25,10 +25,171 @@
           }
         }
       }
+    },
+    "/owners/{ownerEmail}/event-types": {
+      "post": {
+        "operationId": "createEventType",
+        "description": "Create an event type for the owner.",
+        "parameters": [
+          {
+            "name": "ownerEmail",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "201 — the created event type.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EventType"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "422 — the request failed validation.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationError"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateEventTypeBody"
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "operationId": "listEventTypes",
+        "description": "List the owner's event types, oldest first.",
+        "parameters": [
+          {
+            "name": "ownerEmail",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The request has succeeded.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/EventType"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
     "schemas": {
+      "CreateEventTypeBody": {
+        "type": "object",
+        "required": [
+          "name",
+          "description",
+          "duration"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100,
+            "description": "Short display name shown to the owner and the guest."
+          },
+          "description": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 500,
+            "description": "What the meeting is about, shown to the guest."
+          },
+          "duration": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 15,
+            "maximum": 240,
+            "multipleOf": 15,
+            "description": "Meeting length in minutes: a multiple of 15, from 15 to 240."
+          }
+        },
+        "description": "Body for creating an event type."
+      },
+      "EventType": {
+        "type": "object",
+        "required": [
+          "id",
+          "ownerEmail",
+          "name",
+          "description",
+          "duration"
+        ],
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Server-assigned identifier."
+          },
+          "ownerEmail": {
+            "type": "string",
+            "description": "Email of the owner this event type belongs to."
+          },
+          "name": {
+            "type": "string",
+            "description": "Short display name shown to the owner and the guest."
+          },
+          "description": {
+            "type": "string",
+            "description": "What the meeting is about, shown to the guest."
+          },
+          "duration": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Meeting length in minutes."
+          }
+        },
+        "description": "A kind of bookable meeting defined by an owner: name, description and duration."
+      },
+      "FieldError": {
+        "type": "object",
+        "required": [
+          "path",
+          "message"
+        ],
+        "properties": {
+          "path": {
+            "type": "string",
+            "description": "Path to the offending property, e.g. `\"duration\"`."
+          },
+          "message": {
+            "type": "string",
+            "description": "What is wrong with it, e.g. `\"must be multiple of 15\"`."
+          }
+        },
+        "description": "One failed validation constraint of a request."
+      },
       "HealthStatus": {
         "type": "object",
         "required": [
@@ -44,6 +205,27 @@
           }
         },
         "description": "Liveness probe response."
+      },
+      "ValidationError": {
+        "type": "object",
+        "required": [
+          "message",
+          "errors"
+        ],
+        "properties": {
+          "message": {
+            "type": "string",
+            "description": "Human-readable summary."
+          },
+          "errors": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/FieldError"
+            },
+            "description": "One entry per failed constraint."
+          }
+        },
+        "description": "The request failed validation."
       }
     }
   }

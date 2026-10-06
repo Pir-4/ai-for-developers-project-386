@@ -25,10 +25,66 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/owners/{ownerEmail}/event-types": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description List the owner's event types, oldest first. */
+        get: operations["listEventTypes"];
+        put?: never;
+        /** @description Create an event type for the owner. */
+        post: operations["createEventType"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /** @description Body for creating an event type. */
+        CreateEventTypeBody: {
+            /** @description Short display name shown to the owner and the guest. */
+            name: string;
+            /** @description What the meeting is about, shown to the guest. */
+            description: string;
+            /**
+             * Format: int32
+             * @description Meeting length in minutes: a multiple of 15, from 15 to 240.
+             */
+            duration: number;
+        };
+        /** @description A kind of bookable meeting defined by an owner: name, description and duration. */
+        EventType: {
+            /**
+             * Format: int32
+             * @description Server-assigned identifier.
+             */
+            id: number;
+            /** @description Email of the owner this event type belongs to. */
+            ownerEmail: string;
+            /** @description Short display name shown to the owner and the guest. */
+            name: string;
+            /** @description What the meeting is about, shown to the guest. */
+            description: string;
+            /**
+             * Format: int32
+             * @description Meeting length in minutes.
+             */
+            duration: number;
+        };
+        /** @description One failed validation constraint of a request. */
+        FieldError: {
+            /** @description Path to the offending property, e.g. `"duration"`. */
+            path: string;
+            /** @description What is wrong with it, e.g. `"must be multiple of 15"`. */
+            message: string;
+        };
         /** @description Liveness probe response. */
         HealthStatus: {
             /**
@@ -36,6 +92,13 @@ export interface components {
              * @enum {string}
              */
             status: "ok";
+        };
+        /** @description The request failed validation. */
+        ValidationError: {
+            /** @description Human-readable summary. */
+            message: string;
+            /** @description One entry per failed constraint. */
+            errors: components["schemas"]["FieldError"][];
         };
     };
     responses: never;
@@ -62,6 +125,63 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HealthStatus"];
+                };
+            };
+        };
+    };
+    listEventTypes: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                ownerEmail: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The request has succeeded. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EventType"][];
+                };
+            };
+        };
+    };
+    createEventType: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                ownerEmail: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateEventTypeBody"];
+            };
+        };
+        responses: {
+            /** @description 201 — the created event type. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EventType"];
+                };
+            };
+            /** @description 422 — the request failed validation. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ValidationError"];
                 };
             };
         };

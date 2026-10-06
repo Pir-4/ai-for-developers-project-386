@@ -10,7 +10,7 @@
 
 ## Stack
 
-- Node.js 22+, TypeScript, Fastify, SQLite, Docker
+- Node.js 22.13+, TypeScript, Fastify, SQLite (node:sqlite), Docker
 - Frontend: Vite + React + Mantine
 
 ## Setup
@@ -18,7 +18,7 @@
 ```bash
 git clone https://github.com/Pir-4/ai-for-developers-project-386.git
 cd ai-for-developers-project-386
-make setup   # installs dependencies of all workspaces (requires Node.js 22+)
+make setup   # installs dependencies of all workspaces (requires Node.js >= 22.13: unflagged node:sqlite)
 ```
 
 ## Usage
@@ -32,6 +32,10 @@ make generate   # regenerate the OpenAPI spec and TS types from the TypeSpec sou
 
 make docker-build && make docker-run   # build and run in a container (http://localhost:8000)
 ```
+
+Данные хранятся в SQLite: файл `data/app.db` (в git не попадает, при первом старте
+схема создаётся автоматически). Чтобы встречи переживали пересоздание контейнера,
+подключите том: `docker run --rm -p 8000:8000 -v call-booking-data:/app/data call-booking`.
 
 The API contract is TypeSpec-first: the sources live in [`contract/`](contract/) (`main.tsp`), and `make generate`
 emits the OpenAPI 3.0 spec ([`contract/openapi.yaml`](contract/openapi.yaml)) plus TypeScript types for `server/`

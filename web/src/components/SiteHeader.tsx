@@ -1,9 +1,10 @@
 import { AppShell, Anchor, Button, Group } from '@mantine/core'
-import { useLanding, useLandingLocale } from '../i18n.tsx'
+import { Link } from 'react-router'
+import { useLanding, useLocale } from '../i18n.tsx'
 import { audiencesHref, createMeetingHref, howHref } from '../links.ts'
 
 function LocaleSwitcher() {
-  const { locale, setLocale } = useLandingLocale()
+  const { locale, setLocale } = useLocale()
   return (
     <Group gap={2} wrap="nowrap" aria-label="Language">
       <Button
@@ -55,7 +56,7 @@ export function SiteHeader() {
         </Group>
         <Group gap="xs" wrap="nowrap">
           <LocaleSwitcher />
-          <Button component="a" href={createMeetingHref} size="compact-sm">
+          <Button component={Link} to={createMeetingHref} size="compact-sm">
             {t.createMeeting}
           </Button>
         </Group>

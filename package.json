@@ -10,7 +10,7 @@
     "web"
   ],
   "engines": {
-    "node": ">=22"
+    "node": ">=22.13"
   },
   "overrides": {
     "jsdom": "^26.1.0"

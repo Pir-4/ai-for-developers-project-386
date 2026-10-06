@@ -32,6 +32,18 @@ if (!window.matchMedia) {
   })
 }
 
+// jsdom does not implement FontFaceSet; Mantine Textarea autosize listens to
+// document.fonts "loadingdone" to remeasure.
+if (!('fonts' in document)) {
+  Object.defineProperty(document, 'fonts', {
+    writable: true,
+    value: {
+      addEventListener: () => {},
+      removeEventListener: () => {},
+    },
+  })
+}
+
 afterEach(() => {
   cleanup()
 })

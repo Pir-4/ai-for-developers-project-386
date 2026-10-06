@@ -1,4 +1,5 @@
 import { Box, Button, Container, Group, Stack, Text, Title } from '@mantine/core'
+import { Link } from 'react-router'
 import { useLanding } from '../i18n.tsx'
 import { createMeetingHref, howHref } from '../links.ts'
 
@@ -19,10 +20,10 @@ export function HeroSection() {
             {t.hero.subtitle}
           </Text>
           <Group gap="md">
-            <Button component="a" href={createMeetingHref} size="lg">
+            <Button component={Link} to={createMeetingHref} size="lg">
               {t.createMeeting}
             </Button>
-            <Button component="a" href={howHref} size="lg" variant="default">
+            <Button component={Link} to={howHref} size="lg" variant="default">
               {t.nav.how}
             </Button>
           </Group>

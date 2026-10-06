@@ -11,8 +11,9 @@ type → slots), not for visual style — the style is ours, as defined here.
 - Mantine 9, **default theme**. No custom fonts, no brand palette, no logo
   artwork, no images, no animations — until the user asks.
 - Acceptance bar: "clean generic SaaS, nothing broken-looking".
-- One process serves API + static files — pages are plain client routes;
-  do not introduce a router until a spec says so.
+- One process serves API + static files — pages are client routes served by
+  the single server (SPA fallback to `index.html` for non-API paths);
+  routing is react-router (`/`, `/login`, `/owner/:email`, `/book/:email/:id`).
 
 ## Page skeleton
 
@@ -73,11 +74,14 @@ Use `AppShell` (`header={{ height: 60 }} padding="md"`) with semantic
 
 - Zero hardcoded UI strings in `.tsx` components.
 - `web/src/content/landing.ts` holds `landingCopy = { ru, en }` (`as const`) —
-  two locales, full coverage, RU is the default.
-- `web/src/links.ts` holds every href in one place.
-- `web/src/i18n.tsx`: `LandingLocaleProvider` + `useLanding()`; provider sets
+  two locales, full coverage, RU is the default. `web/src/content/app.ts`
+  holds `appCopy = { ru, en }` for every page beyond the landing.
+- `web/src/links.ts` holds every href in one place (landing anchors as
+  `/#id`, client routes via `ownerHref(email)` / `guestHref(email, id)`).
+- `web/src/i18n.tsx`: the app-wide `LocaleProvider` + `useLocale()` (sets
   `<html lang>`, persists the choice in `localStorage['ui.locale']`, restores
-  it on mount, falls back to `ru`. Switcher never changes hrefs/ids.
+  it on mount, falls back to `ru`), plus the copy hooks `useLanding()` and
+  `useAppText()`. Switcher never changes hrefs/ids.
 
 ## Testing the look
 
@@ -87,5 +91,8 @@ Use `AppShell` (`header={{ height: 60 }} padding="md"`) with semantic
 - DOM acceptance: query by role / accessible name / landmark only
   (Testing Library), expectations come from the spec's canonical strings —
   never from CSS or class names.
-- `test/setup.ts` polyfills `matchMedia` + `ResizeObserver` and clears
-  `localStorage` after each test.
+- `test/setup.ts` polyfills `matchMedia` + `ResizeObserver` + `document.fonts`
+  (Mantine `Textarea autosize` listens to it); suites that touch
+  `localStorage` clear it in their own `beforeEach`. Route pages render `App`
+  at a pushed URL; data pages stub global `fetch` (and `navigator.clipboard`
+  **after** `userEvent.setup()` — its setup installs its own clipboard mock).
