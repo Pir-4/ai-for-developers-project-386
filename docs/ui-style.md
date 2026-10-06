@@ -13,7 +13,8 @@ type → slots), not for visual style — the style is ours, as defined here.
 - Acceptance bar: "clean generic SaaS, nothing broken-looking".
 - One process serves API + static files — pages are client routes served by
   the single server (SPA fallback to `index.html` for non-API paths);
-  routing is react-router (`/`, `/login`, `/owner/:email`, `/book/:email/:id`).
+  routing is react-router (`/`, `/login`, `/owner/:email`, `/book/:email`,
+  `/book/:email/:id`).
 
 ## Page skeleton
 
@@ -77,7 +78,8 @@ Use `AppShell` (`header={{ height: 60 }} padding="md"`) with semantic
   two locales, full coverage, RU is the default. `web/src/content/app.ts`
   holds `appCopy = { ru, en }` for every page beyond the landing.
 - `web/src/links.ts` holds every href in one place (landing anchors as
-  `/#id`, client routes via `ownerHref(email)` / `guestHref(email, id)`).
+  `/#id`, client routes via `ownerHref(email)` / `bookingCatalogHref(email)` /
+  `guestHref(email, id)`).
 - `web/src/i18n.tsx`: the app-wide `LocaleProvider` + `useLocale()` (sets
   `<html lang>`, persists the choice in `localStorage['ui.locale']`, restores
   it on mount, falls back to `ru`), plus the copy hooks `useLanding()` and

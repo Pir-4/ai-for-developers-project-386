@@ -32,7 +32,7 @@ Behavior reference — video in README: https://files.hexlet.app/a/2ipc5m
   `src/services/index.ts`, typed with the generated types. `src/index.ts` — startup on `PORT ?? 8000`.
   Tests — Vitest via `app.inject()` with `dbPath: ":memory:"`, located in `server/test/`.
 - `web/` — Vite 6 + React 19 + Mantine 9 + react-router (client routes `/`, `/login`, `/owner/:email`,
-  `/book/:email/:id`; pages in `src/pages/`, copy in `src/content/`, `src/api.ts` — the typed API client).
+  `/book/:email`, `/book/:email/:id`; pages in `src/pages/`, copy in `src/content/`, `src/api.ts` — the typed API client).
   Dev proxy `/api` → :8000 (`vite.config.ts`).
 - Production: a single process (`npm start`) serves both the API (`/api/*`) and static files from `web/dist` — there is no separate frontend server. Client routes get the SPA fallback (`index.html`); unknown `/api/*` stays JSON 404.
 - Time — UTC ISO 8601 strings only; a slot is exactly 30 minutes, `start` aligned to `:00`/`:30`.

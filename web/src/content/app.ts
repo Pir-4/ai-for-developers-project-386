@@ -37,10 +37,17 @@ export type GuestText = {
   notFound: string
 }
 
+export type GuestCatalogText = {
+  title: string
+  hint: string
+  empty: string
+}
+
 export type AppText = {
   login: LoginText
   owner: OwnerText
   guest: GuestText
+  guestCatalog: GuestCatalogText
   notFound: { title: string; toMain: string }
   shared: { minutesSuffix: string }
   errors: { network: string }
@@ -78,6 +85,11 @@ export const appCopy: Record<Locale, AppText> = {
       title: 'Запись на встречу',
       soon: 'Выбор времени появится на следующем шаге',
       notFound: 'Такой тип встречи не найден',
+    },
+    guestCatalog: {
+      title: 'Выберите тип встречи',
+      hint: 'Нажмите на карточку, чтобы перейти к выбору времени',
+      empty: 'У этого владельца пока нет типов встреч',
     },
     notFound: {
       title: 'Страница не найдена',
@@ -121,6 +133,11 @@ export const appCopy: Record<Locale, AppText> = {
       title: 'Book a meeting',
       soon: 'Time picking is coming in the next step',
       notFound: 'This event type is not found',
+    },
+    guestCatalog: {
+      title: 'Choose an event type',
+      hint: 'Click a card to pick a time',
+      empty: 'This owner has no event types yet',
     },
     notFound: {
       title: 'Page not found',
