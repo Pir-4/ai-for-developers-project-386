@@ -15,7 +15,7 @@ expansion, no IANA zone stored anywhere. This is correct by construction — the
 the owner's zone does the one conversion that needs it — and it deletes server-side expansion code
 instead of adding more of it.
 
-## Considered options
+## Considered Options
 
 - **Single offset at "now"** — wrong past any DST boundary in the window, as above. Rejected.
 - **Per-date offset** (`getTimezoneOffset()` evaluated per date) — correct except on the transition
