@@ -8,6 +8,8 @@
 Учебный проект Хекслета: https://ru.hexlet.io/programs/ai-for-developers
 Как это должно работать: https://files.hexlet.app/a/2ipc5m
 
+Задеплоено на Render: https://calendar-agap-edu-project.onrender.com/
+
 ## Stack
 
 - Node.js 22.13+, TypeScript, Fastify, SQLite (node:sqlite), Docker
