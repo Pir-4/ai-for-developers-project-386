@@ -23,7 +23,7 @@ export function HeroSection() {
             <Button component={Link} to={createMeetingHref} size="lg">
               {t.createMeeting}
             </Button>
-            <Button component={Link} to={howHref} size="lg" variant="default">
+            <Button component="a" href={howHref} size="lg" variant="default">
               {t.nav.how}
             </Button>
           </Group>
