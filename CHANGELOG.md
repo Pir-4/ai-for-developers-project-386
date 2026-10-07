@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.1](https://github.com/Pir-4/ai-for-developers-project-386/compare/call-booking-v0.2.0...call-booking-v0.2.1) (2026-10-07)
+
+
+### Bug Fixes
+
+* **web:** make hero "how it works" button scroll to the anchor ([31c78a5](https://github.com/Pir-4/ai-for-developers-project-386/commit/31c78a55c293dd4209803ac064a99d1c452dfc37))
+
 ## [0.2.0](https://github.com/Pir-4/ai-for-developers-project-386/compare/call-booking-v0.1.0...call-booking-v0.2.0) (2026-10-07)
 
 
