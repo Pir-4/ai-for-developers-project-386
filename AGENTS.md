@@ -3,7 +3,7 @@
 ## Project
 
 "Call booking" — a Hexlet learning project (ai-for-developers program): a simplified Cal.com.
-The owner publishes 30-minute slots, a guest books a slot, the owner views the list of upcoming meetings.
+The owner declares availability on their calendar, a guest picks a duration (15, 30 or 45 minutes) and books a slot, the owner views the list of upcoming meetings.
 
 Deliberately **out of scope** (do not add): authentication, personal accounts, external calendar integrations.
 Behavior reference — video in README: https://files.hexlet.app/a/2ipc5m
@@ -33,10 +33,13 @@ Behavior reference — video in README: https://files.hexlet.app/a/2ipc5m
   `src/services/index.ts`, typed with the generated types. `src/index.ts` — startup on `PORT ?? 8000`.
   Tests — Vitest via `app.inject()` with `dbPath: ":memory:"`, located in `server/test/`.
 - `web/` — Vite 6 + React 19 + Mantine 9 + react-router (client routes `/`, `/login`, `/owner/:email`,
-  `/book/:email`, `/book/:email/:id`; pages in `src/pages/`, copy in `src/content/`, `src/api.ts` — the typed API client).
+  `/book/:email`; pages in `src/pages/`, copy in `src/content/`, `src/api.ts` — the typed API client).
   Dev proxy `/api` → :8000 (`vite.config.ts`).
 - Production: a single process (`npm start`) serves both the API (`/api/*`) and static files from `web/dist` — there is no separate frontend server. Client routes get the SPA fallback (`index.html`); unknown `/api/*` stays JSON 404.
-- Time — UTC ISO 8601 strings only; a slot is exactly 30 minutes, `start` aligned to `:00`/`:30`.
+- Time — UTC ISO 8601 strings only; interval bounds lie on the 15-minute grid, and a guest's slot duration
+  is 15, 30 or 45 minutes. The owner's browser converts the local wall time it displays to UTC; the server
+  stores and returns UTC instants verbatim, performing no timezone expansion and storing no IANA zone
+  (see `docs/research/local-time-to-utc.md`).
 - DB — SQLite via `node:sqlite`, file `data/app.db` (default path is resolved from the repo root, so cwd does not matter). Requires local Node ≥ 22.13 (unflagged `node:sqlite`; the process prints an ExperimentalWarning on Node 22 — expected). `data/` is in .gitignore.
 - `docs/reference/` — local design reference screenshots (e.g. for the landing page). Gitignored; never commit its contents.
 - `docs/ui-style.md` — the approved visual contract (from the landing page) that every new page follows.
