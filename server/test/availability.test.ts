@@ -1,11 +1,12 @@
 import { describe, expect, it } from "vitest";
 import { buildApp } from "../src/app.js";
+import { eventTypeUrls } from "./event-type-urls.js";
 
 const owner = "owner@example.com";
 const enc = encodeURIComponent(owner);
 const availabilityUrl = (date: string) => `/api/owners/${enc}/availability/${date}`;
 const listUrl = `/api/owners/${enc}/availability`;
-const bookingsUrl = `/api/owners/${enc}/bookings`;
+const { bookingsUrl } = eventTypeUrls(owner);
 
 const now = new Date("2024-01-10T09:47:00.000Z");
 const day = "2024-01-11";
@@ -163,12 +164,11 @@ describe("доступность владельца", () => {
     });
     await app.inject({
       method: "POST",
-      url: bookingsUrl,
+      url: await bookingsUrl(app, 45),
       payload: {
         guestName: "Гость",
         guestEmail: "guest@example.com",
         start: iso("12:30"),
-        durationMinutes: 45,
       },
     });
 
@@ -198,12 +198,11 @@ describe("доступность владельца", () => {
     });
     await app.inject({
       method: "POST",
-      url: bookingsUrl,
+      url: await bookingsUrl(app, 45),
       payload: {
         guestName: "Гость",
         guestEmail: "guest@example.com",
         start: iso("12:30"),
-        durationMinutes: 45,
       },
     });
 

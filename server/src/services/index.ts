@@ -4,6 +4,11 @@ import {
   createListAvailabilityHandler,
   createSetAvailabilityHandler,
 } from "./availability.js";
+import {
+  createCreateEventTypeHandler,
+  createGetEventTypeHandler,
+  createListEventTypesHandler,
+} from "./event-types.js";
 import { createListSlotsHandler } from "./slots.js";
 import { createCreateBookingHandler } from "./bookings.js";
 import { createListMeetingsHandler } from "./meetings.js";
@@ -16,6 +21,9 @@ export function createServiceHandlers(db: DatabaseSync, clock: () => Date) {
     health,
     setAvailability: createSetAvailabilityHandler(db, clock),
     listAvailability: createListAvailabilityHandler(db, clock),
+    createEventType: createCreateEventTypeHandler(db),
+    listEventTypes: createListEventTypesHandler(db),
+    getEventType: createGetEventTypeHandler(db),
     listSlots: createListSlotsHandler(db, clock),
     createBooking: createCreateBookingHandler(db, clock),
     listMeetings: createListMeetingsHandler(db, clock),

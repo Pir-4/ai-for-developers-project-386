@@ -4,12 +4,12 @@
 // каждый эндпоинт в соседних файлах.
 import { describe, expect, it } from "vitest";
 import { buildApp } from "../src/app.js";
+import { eventTypeUrls } from "./event-type-urls.js";
 
 const owner = "owner@example.com";
 const enc = encodeURIComponent(owner);
 const availabilityUrl = (date: string) => `/api/owners/${enc}/availability/${date}`;
-const slotsUrl = (duration: number) => `/api/owners/${enc}/slots?duration=${duration}`;
-const bookingsUrl = `/api/owners/${enc}/bookings`;
+const { slotsUrl, bookingsUrl } = eventTypeUrls(owner);
 const meetingsUrl = `/api/owners/${enc}/meetings`;
 
 const now = new Date("2024-01-10T09:47:00.000Z");
@@ -27,7 +27,35 @@ const workday = [
 const build = () => buildApp({ dbPath: ":memory:", clock: () => now });
 const at = (slots: { start: string }[]) => slots.map((s) => s.start.slice(11, 16));
 
-describe("Полный сценарий: доступность → лестница → бронь → встречи → защита дня", () => {
+describe("Полный сценарий: тип встречи → доступность → лестница → бронь → встречи → защита дня", () => {
+  it("0. владелец заводит типы встреч — гость видит их каталог и лестницу их длительности", async () => {
+    const app = await build();
+    const typesUrl = `/api/owners/${enc}/event-types`;
+    for (const body of [
+      { name: "Знакомство", description: "Короткий первый созвон", durationMinutes: 30 },
+      { name: "Консультация", description: "Разбор задачи", durationMinutes: 45 },
+    ]) {
+      expect((await app.inject({ method: "POST", url: typesUrl, payload: body })).statusCode)
+        .toBe(201);
+    }
+
+    const catalog = (await app.inject({ method: "GET", url: typesUrl })).json();
+    expect(catalog.map((t: { name: string; durationMinutes: number }) => [t.name, t.durationMinutes]))
+      .toEqual([["Знакомство", 30], ["Консультация", 45]]);
+
+    await app.inject({
+      method: "PUT",
+      url: availabilityUrl(day),
+      payload: { intervals: [{ start: iso("11:00"), end: iso("12:30") }] },
+    });
+    const ladder = (
+      await app.inject({ method: "GET", url: `${typesUrl}/${catalog[1].id}/slots` })
+    ).json();
+    expect(at(ladder)).toEqual(["11:00", "11:45"]);
+
+    await app.close();
+  });
+
   it("1. владелец объявляет два интервала — они возвращаются ему целиком", async () => {
     const app = await build();
 
@@ -52,7 +80,7 @@ describe("Полный сценарий: доступность → лестни
       payload: { intervals: workday },
     });
 
-    const slots = (await app.inject({ method: "GET", url: slotsUrl(45) })).json();
+    const slots = (await app.inject({ method: "GET", url: await slotsUrl(app, 45) })).json();
     // Обед реально разрывает лестницу: 12:30–13:15 не предлагается.
     expect(at(slots)).toEqual([
       "11:00",
@@ -78,13 +106,13 @@ describe("Полный сценарий: доступность → лестни
 
     const booked = await app.inject({
       method: "POST",
-      url: bookingsUrl,
-      payload: { ...guest, start: iso("14:45"), durationMinutes: 45 },
+      url: await bookingsUrl(app, 45),
+      payload: { ...guest, start: iso("14:45") },
     });
     expect(booked.statusCode).toBe(201);
     expect(booked.json().end).toBe(iso("15:30"));
 
-    const slots = (await app.inject({ method: "GET", url: slotsUrl(45) })).json();
+    const slots = (await app.inject({ method: "GET", url: await slotsUrl(app, 45) })).json();
     const byTime = Object.fromEntries(
       slots.map((slot: { start: string; status: string }) => [
         slot.start.slice(11, 16),
@@ -100,7 +128,7 @@ describe("Полный сценарий: доступность → лестни
     await app.close();
   });
 
-  it("4. занятость видна и на других длительностях — через пересечение", async () => {
+  it("4. бронь одного типа встречи занимает пересекающиеся слоты других типов", async () => {
     const app = await build();
     await app.inject({
       method: "PUT",
@@ -109,12 +137,12 @@ describe("Полный сценарий: доступность → лестни
     });
     await app.inject({
       method: "POST",
-      url: bookingsUrl,
-      payload: { ...guest, start: iso("14:45"), durationMinutes: 45 },
+      url: await bookingsUrl(app, 45),
+      payload: { ...guest, start: iso("14:45") },
     });
 
     for (const duration of [15, 30]) {
-      const slots = (await app.inject({ method: "GET", url: slotsUrl(duration) })).json();
+      const slots = (await app.inject({ method: "GET", url: await slotsUrl(app, duration) })).json();
       const busy = slots.filter((slot: { status: string }) => slot.status === "busy");
       expect(busy.length).toBeGreaterThan(0);
       // Всё занятое лежит внутри 14:45–15:30 и ничего не торчит наружу.
@@ -123,6 +151,15 @@ describe("Полный сценарий: доступность → лестни
         expect(slot.end <= iso("15:45")).toBe(true);
       }
     }
+
+    // Записаться на пересекающийся слот другого типа нельзя: 15:00–15:30
+    // 30-минутного типа задевает 14:45–15:30 45-минутного.
+    const clash = await app.inject({
+      method: "POST",
+      url: await bookingsUrl(app, 30),
+      payload: { ...guest, guestName: "Другой гость", start: iso("15:00") },
+    });
+    expect(clash.statusCode).toBe(409);
 
     await app.close();
   });
@@ -136,14 +173,16 @@ describe("Полный сценарий: доступность → лестни
     });
     await app.inject({
       method: "POST",
-      url: bookingsUrl,
-      payload: { ...guest, start: iso("14:45"), durationMinutes: 45 },
+      url: await bookingsUrl(app, 45),
+      payload: { ...guest, start: iso("14:45") },
     });
 
     const meetings = (await app.inject({ method: "GET", url: meetingsUrl })).json();
     expect(meetings).toEqual([
       {
         id: expect.any(Number),
+        eventTypeId: expect.any(Number),
+        eventTypeName: "Встреча 45 мин",
         ownerEmail: owner,
         start: iso("14:45"),
         end: iso("15:30"),
@@ -165,18 +204,17 @@ describe("Полный сценарий: доступность → лестни
     });
     await app.inject({
       method: "POST",
-      url: bookingsUrl,
-      payload: { ...guest, start: iso("14:45"), durationMinutes: 45 },
+      url: await bookingsUrl(app, 45),
+      payload: { ...guest, start: iso("14:45") },
     });
 
     const second = await app.inject({
       method: "POST",
-      url: bookingsUrl,
+      url: await bookingsUrl(app, 45),
       payload: {
         guestName: "Второй",
         guestEmail: "second@example.com",
         start: iso("14:45"),
-        durationMinutes: 45,
       },
     });
     expect(second.statusCode).toBe(409);
@@ -193,8 +231,8 @@ describe("Полный сценарий: доступность → лестни
     });
     await app.inject({
       method: "POST",
-      url: bookingsUrl,
-      payload: { ...guest, start: iso("14:45"), durationMinutes: 45 },
+      url: await bookingsUrl(app, 45),
+      payload: { ...guest, start: iso("14:45") },
     });
 
     const narrowed = await app.inject({
@@ -228,7 +266,7 @@ describe("Полный сценарий: доступность → лестни
       payload: { intervals: workday },
     });
 
-    const slots = (await app.inject({ method: "GET", url: slotsUrl(45) })).json();
+    const slots = (await app.inject({ method: "GET", url: await slotsUrl(app, 45) })).json();
     expect(at(slots)).toEqual(["15:30", "16:15", "17:00"]);
 
     const tooFar = await app.inject({
@@ -246,8 +284,8 @@ describe("Полный сценарий: доступность → лестни
 
     const noAvailability = await app.inject({
       method: "POST",
-      url: bookingsUrl,
-      payload: { ...guest, start: iso("11:00"), durationMinutes: 30 },
+      url: await bookingsUrl(app, 30),
+      payload: { ...guest, start: iso("11:00") },
     });
     expect(noAvailability.statusCode).toBe(404);
     expect(noAvailability.json()).toHaveProperty("message");
@@ -260,8 +298,8 @@ describe("Полный сценарий: доступность → лестни
 
     const badStart = await app.inject({
       method: "POST",
-      url: bookingsUrl,
-      payload: { ...guest, start: iso("11:20"), durationMinutes: 30 },
+      url: await bookingsUrl(app, 30),
+      payload: { ...guest, start: iso("11:20") },
     });
     expect(badStart.statusCode).toBe(422);
     expect(badStart.json().errors[0]).toMatchObject({ path: "start" });
