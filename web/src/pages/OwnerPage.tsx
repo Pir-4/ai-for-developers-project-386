@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState, type FormEvent } from 'react'
 import { useParams } from 'react-router'
 import {
   ActionIcon,
@@ -12,21 +12,27 @@ import {
   Select,
   Stack,
   Text,
+  Textarea,
+  TextInput,
   Title,
 } from '@mantine/core'
 import { DatePicker } from '@mantine/dates'
 import {
   ApiAvailabilityConflictError,
   ApiValidationError,
+  EVENT_TYPE_DURATIONS,
+  createEventType,
   listAvailability,
+  listEventTypes,
   listMeetings,
   setAvailability,
   type BlockingMeeting,
   type DayAvailability,
+  type EventType,
   type Meeting,
 } from '../api.ts'
 import { useAppText } from '../i18n.tsx'
-import { guestHref } from '../links.ts'
+import { eventTypeHref, guestHref } from '../links.ts'
 import {
   formatLocalDateTime,
   formatLocalTime,
@@ -38,6 +44,10 @@ import {
 } from '../localTime.ts'
 
 const BOOKING_WINDOW_DAYS = 14
+const EVENT_TYPE_NAME_MAX = 100
+const EVENT_TYPE_DESCRIPTION_MAX = 500
+
+type EventTypeFieldErrors = Partial<Record<'name' | 'description' | 'form', string>>
 
 type Draft = { from: string; to: string }
 
@@ -61,9 +71,10 @@ function draftsOverlap(drafts: Draft[]): boolean {
 }
 
 /**
- * Owner area (/owner/:email): the calendar they fill in, the link they share,
- * and the meetings that came of it — one page, so narrowing a day and seeing
- * what already sits in it never needs a navigation.
+ * Owner area (/owner/:email): the event types guests choose from, the calendar
+ * they fill in, the link they share, and the meetings that came of it — one
+ * page, so narrowing a day and seeing what already sits in it never needs a
+ * navigation.
  */
 export function OwnerPage() {
   const { email = '' } = useParams()
@@ -76,6 +87,14 @@ export function OwnerPage() {
   const [loadFailed, setLoadFailed] = useState(false)
   const [meetings, setMeetings] = useState<Meeting[]>([])
   const [meetingsFailed, setMeetingsFailed] = useState(false)
+
+  const [eventTypes, setEventTypes] = useState<EventType[]>([])
+  const [eventTypesFailed, setEventTypesFailed] = useState(false)
+  const [typeName, setTypeName] = useState('')
+  const [typeDescription, setTypeDescription] = useState('')
+  const [typeDuration, setTypeDuration] = useState('30')
+  const [typeErrors, setTypeErrors] = useState<EventTypeFieldErrors>({})
+  const [creatingType, setCreatingType] = useState(false)
 
   const today = useMemo(() => startOfToday(), [])
   const [selectedDate, setSelectedDate] = useState(() => toDateString(today))
@@ -96,6 +115,20 @@ export function OwnerPage() {
       })
       .catch(() => {
         if (!cancelled) setLoadFailed(true)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [ownerEmail])
+
+  useEffect(() => {
+    let cancelled = false
+    listEventTypes(ownerEmail)
+      .then((loaded) => {
+        if (!cancelled) setEventTypes(loaded)
+      })
+      .catch(() => {
+        if (!cancelled) setEventTypesFailed(true)
       })
     return () => {
       cancelled = true
@@ -195,12 +228,149 @@ export function OwnerPage() {
     }
   }
 
-  const guestUrl = `${window.location.origin}${guestHref(ownerEmail)}`
+  async function submitEventType(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    const name = typeName.trim()
+    const description = typeDescription.trim()
+    const errors: EventTypeFieldErrors = {}
+    if (name.length < 1) errors.name = t.typeNameRequired
+    if (description.length < 1) errors.description = t.typeDescriptionRequired
+    setTypeErrors(errors)
+    if (Object.keys(errors).length > 0) return
+
+    setCreatingType(true)
+    try {
+      const created = await createEventType(ownerEmail, {
+        name,
+        description,
+        durationMinutes: Number(typeDuration),
+      })
+      setEventTypes((previous) => [...previous, created])
+      setTypeName('')
+      setTypeDescription('')
+    } catch (err) {
+      if (err instanceof ApiValidationError) {
+        const serverErrors: EventTypeFieldErrors = {}
+        for (const issue of err.errors) {
+          if (issue.path === 'name') serverErrors.name ??= issue.message
+          else if (issue.path === 'description') serverErrors.description ??= issue.message
+          else serverErrors.form ??= issue.message
+        }
+        setTypeErrors(serverErrors)
+      } else {
+        setTypeErrors({ form: errorsText.network })
+      }
+    } finally {
+      setCreatingType(false)
+    }
+  }
+
+  const absolute = (href: string) => `${window.location.origin}${href}`
+  const guestUrl = absolute(guestHref(ownerEmail))
 
   return (
     <Container size="lg" py="xl">
       <Stack gap="xl">
         <Title order={1}>{t.title}</Title>
+
+        <Box component="section">
+          <Stack gap="md">
+            <Title order={2}>{t.eventTypesTitle}</Title>
+            <Text c="dimmed" size="sm">
+              {t.eventTypesHint}
+            </Text>
+            <SimpleGrid cols={{ base: 1, md: 2 }} spacing="md">
+              <Card withBorder p="lg">
+                <form onSubmit={submitEventType} noValidate>
+                  <Stack gap="md">
+                    <Title order={3}>{t.newEventTypeTitle}</Title>
+                    <TextInput
+                      label={t.typeNameLabel}
+                      value={typeName}
+                      error={typeErrors.name}
+                      maxLength={EVENT_TYPE_NAME_MAX}
+                      onChange={(event) => setTypeName(event.currentTarget.value)}
+                    />
+                    <Textarea
+                      label={t.typeDescriptionLabel}
+                      value={typeDescription}
+                      error={typeErrors.description}
+                      maxLength={EVENT_TYPE_DESCRIPTION_MAX}
+                      autosize
+                      minRows={2}
+                      onChange={(event) => setTypeDescription(event.currentTarget.value)}
+                    />
+                    <Select
+                      label={t.typeDurationLabel}
+                      data={EVENT_TYPE_DURATIONS.map((minutes) => ({
+                        value: String(minutes),
+                        label: `${minutes} ${shared.minutesSuffix}`,
+                      }))}
+                      value={typeDuration}
+                      allowDeselect={false}
+                      onChange={(value) => value && setTypeDuration(value)}
+                    />
+                    <Button type="submit" loading={creatingType} style={{ alignSelf: 'flex-start' }}>
+                      {t.createEventType}
+                    </Button>
+                    {typeErrors.form && (
+                      <Text c="red" size="sm">
+                        {typeErrors.form}
+                      </Text>
+                    )}
+                  </Stack>
+                </form>
+              </Card>
+
+              <Stack gap="sm">
+                {eventTypesFailed ? (
+                  <Text c="dimmed" size="sm">
+                    {t.eventTypesLoadError}
+                  </Text>
+                ) : eventTypes.length === 0 ? (
+                  <Text c="dimmed" size="sm">
+                    {t.eventTypesEmpty}
+                  </Text>
+                ) : (
+                  eventTypes.map((eventType) => {
+                    const url = absolute(eventTypeHref(ownerEmail, eventType.id))
+                    return (
+                      <Card key={eventType.id} component="article" withBorder p="md">
+                        <Stack gap={4}>
+                          <Group justify="space-between" wrap="nowrap">
+                            <Text fw={700}>{eventType.name}</Text>
+                            <Text size="sm" fw={700}>
+                              {`${eventType.durationMinutes} ${shared.minutesSuffix}`}
+                            </Text>
+                          </Group>
+                          <Text c="dimmed" size="sm">
+                            {eventType.description}
+                          </Text>
+                          <Group gap="xs" wrap="nowrap">
+                            <Text size="xs" c="dimmed" style={{ wordBreak: 'break-all' }}>
+                              {url}
+                            </Text>
+                            <CopyButton value={url} timeout={2000}>
+                              {({ copied, copy }) => (
+                                <Button
+                                  onClick={copy}
+                                  variant={copied ? 'filled' : 'default'}
+                                  size="compact-xs"
+                                >
+                                  {copied ? t.copied : t.copy}
+                                </Button>
+                              )}
+                            </CopyButton>
+                          </Group>
+                        </Stack>
+                      </Card>
+                    )
+                  })
+                )}
+              </Stack>
+            </SimpleGrid>
+          </Stack>
+        </Box>
 
         <SimpleGrid cols={{ base: 1, md: 2 }} spacing="md">
             <Card component="section" withBorder p="lg">
@@ -359,6 +529,7 @@ export function OwnerPage() {
               meetings.map((meeting) => (
                 <Card key={meeting.id} component="article" withBorder p="lg">
                   <Stack gap="xs">
+                    <Text fw={700}>{meeting.eventTypeName}</Text>
                     <Text size="sm">
                       {`${t.whenLabel}: ${formatLocalDateTime(meeting.start)} (${timezone})`}
                     </Text>

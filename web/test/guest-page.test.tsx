@@ -6,6 +6,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { appCopy } from '../src/content/app.ts'
 import { LocaleProvider } from '../src/i18n.tsx'
 import { GuestPage } from '../src/pages/GuestPage.tsx'
+import { json, stubFetch } from './fetch-stub.ts'
 
 const ru = appCopy.ru.guest
 const owner = 'owner@example.com'
@@ -21,63 +22,53 @@ function localIso(hours: number, minutes = 0): string {
 
 type Slot = { start: string; end: string; status: 'free' | 'busy' }
 
-const ladder = (duration: number): Slot[] =>
-  duration === 30
-    ? [
-        { start: localIso(11, 0), end: localIso(11, 30), status: 'free' },
-        { start: localIso(11, 30), end: localIso(12, 0), status: 'busy' },
-        { start: localIso(12, 0), end: localIso(12, 30), status: 'free' },
-      ]
-    : [{ start: localIso(11, 0), end: localIso(11, 45), status: 'free' }]
-
-function stubApi(options: { bookingStatus?: number } = {}) {
-  const calls: { url: string; init?: RequestInit }[] = []
-  vi.stubGlobal(
-    'fetch',
-    vi.fn(async (url: string, init?: RequestInit) => {
-      calls.push({ url, init })
-      if (init?.method === 'POST') {
-        const status = options.bookingStatus ?? 201
-        if (status === 409) {
-          return json(409, { message: 'slot is already booked' })
-        }
-        const body = JSON.parse(String(init.body)) as {
-          start: string
-          durationMinutes: number
-          guestName: string
-        }
-        return json(201, {
-          id: 1,
-          ownerEmail: owner,
-          start: body.start,
-          end: body.start,
-          durationMinutes: body.durationMinutes,
-          guestName: body.guestName,
-          guestEmail: 'guest@example.com',
-          createdAt: body.start,
-        })
-      }
-      const duration = Number(new URL(url, 'http://localhost').searchParams.get('duration'))
-      return json(200, ladder(duration))
-    }),
-  )
-  return calls
+const consult = {
+  id: 5,
+  ownerEmail: owner,
+  name: 'Консультация',
+  description: 'Разбор вашей задачи',
+  durationMinutes: 30,
 }
 
-function json(status: number, body: unknown): Response {
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: { 'Content-Type': 'application/json' },
+const ladder: Slot[] = [
+  { start: localIso(11, 0), end: localIso(11, 30), status: 'free' },
+  { start: localIso(11, 30), end: localIso(12, 0), status: 'busy' },
+  { start: localIso(12, 0), end: localIso(12, 30), status: 'free' },
+]
+
+function stubApi(options: { bookingStatus?: number; slots?: Slot[]; typeStatus?: number } = {}) {
+  return stubFetch(({ url, method, body }) => {
+    if (method === 'POST') {
+      const status = options.bookingStatus ?? 201
+      if (status === 409) {
+        return json(409, { message: 'slot is already booked' })
+      }
+      const { start, guestName } = body as { start: string; guestName: string }
+      return json(201, {
+        id: 1,
+        eventTypeId: consult.id,
+        ownerEmail: owner,
+        start,
+        end: start,
+        durationMinutes: consult.durationMinutes,
+        guestName,
+        guestEmail: 'guest@example.com',
+        createdAt: start,
+      })
+    }
+    if (url.endsWith('/slots')) return json(200, options.slots ?? ladder)
+    if (options.typeStatus === 404) return json(404, { message: 'event type not found' })
+    return json(200, consult)
   })
 }
 
-function renderGuest() {
+function renderGuest(eventTypeId = consult.id) {
   return render(
     <MantineProvider>
       <LocaleProvider>
-        <MemoryRouter initialEntries={[`/book/${encodeURIComponent(owner)}`]}>
+        <MemoryRouter initialEntries={[`/book/${encodeURIComponent(owner)}/${eventTypeId}`]}>
           <Routes>
-            <Route path="/book/:email" element={<GuestPage />} />
+            <Route path="/book/:email/:eventTypeId" element={<GuestPage />} />
           </Routes>
         </MemoryRouter>
       </LocaleProvider>
@@ -89,7 +80,7 @@ afterEach(() => {
   vi.unstubAllGlobals()
 })
 
-describe('гостевая страница: календарь владельца', () => {
+describe('гостевая страница: запись на выбранный тип встречи', () => {
   it('показывает лестницу слотов со статусами, занятые — видимы и некликабельны', async () => {
     stubApi()
     renderGuest()
@@ -112,16 +103,36 @@ describe('гостевая страница: календарь владельц
     expect(screen.queryByText(/guest@/)).not.toBeInTheDocument()
   })
 
-  it('смена длительности перезапрашивает лестницу', async () => {
+  it('показывает выбранный тип и запрашивает лестницу именно этого типа', async () => {
     const calls = stubApi()
-    const user = userEvent.setup()
     renderGuest()
+
+    expect(
+      await screen.findByRole('heading', { level: 1, name: 'Консультация' }),
+    ).toBeInTheDocument()
+    expect(screen.getByText('Разбор вашей задачи')).toBeInTheDocument()
+    expect(screen.getByText(`${ru.durationLabel}: 30 мин`)).toBeInTheDocument()
     await screen.findByRole('button', { name: /11:00 - 11:30/ })
+    expect(
+      calls.some((call) =>
+        call.url.endsWith(`/api/owners/${encodeURIComponent(owner)}/event-types/5/slots`),
+      ),
+    ).toBe(true)
+    // Гость больше не выбирает длительность сам.
+    expect(screen.queryByRole('radio')).not.toBeInTheDocument()
+  })
 
-    await user.click(screen.getByRole('radio', { name: '45 мин' }))
+  it('ведёт обратно к каталогу типов', async () => {
+    stubApi()
+    renderGuest()
+    const back = await screen.findByRole('link', { name: ru.backToCatalog })
+    expect(back).toHaveAttribute('href', `/book/${encodeURIComponent(owner)}`)
+  })
 
-    expect(await screen.findByRole('button', { name: /11:00 - 11:45/ })).toBeInTheDocument()
-    expect(calls.some((call) => call.url.includes('duration=45'))).toBe(true)
+  it('несуществующий тип — понятное сообщение', async () => {
+    stubApi({ typeStatus: 404 })
+    renderGuest(999)
+    expect(await screen.findByText(ru.eventTypeNotFound)).toBeInTheDocument()
   })
 
   it('календарь показывает счётчик свободных на дне', async () => {
@@ -134,7 +145,7 @@ describe('гостевая страница: календарь владельц
   })
 
   it('выбор слота открывает форму, успешная бронь — подтверждение', async () => {
-    stubApi()
+    const calls = stubApi()
     const user = userEvent.setup()
     renderGuest()
 
@@ -147,6 +158,14 @@ describe('гостевая страница: календарь владельц
       await screen.findByRole('heading', { level: 1, name: ru.confirmedTitle }),
     ).toBeInTheDocument()
     expect(screen.getByText(/Гость/)).toBeInTheDocument()
+    expect(screen.getByText('Консультация')).toBeInTheDocument()
+    const post = calls.find((call) => call.method === 'POST')
+    expect(post?.url).toContain('/event-types/5/bookings')
+    expect(post?.body).toEqual({
+      guestName: 'Гость',
+      guestEmail: 'guest@example.com',
+      start: localIso(11, 0),
+    })
   })
 
   it('пустое имя и кривая почта — ошибки полей, запрос не уходит', async () => {
@@ -160,7 +179,7 @@ describe('гостевая страница: календарь владельц
 
     expect(screen.getByText(ru.nameRequired)).toBeInTheDocument()
     expect(screen.getByText(ru.emailInvalid)).toBeInTheDocument()
-    expect(calls.some((call) => call.init?.method === 'POST')).toBe(false)
+    expect(calls.some((call) => call.method === 'POST')).toBe(false)
   })
 
   it('409 — сообщение и обновлённая лестница вместо потерянной брони', async () => {
@@ -178,7 +197,7 @@ describe('гостевая страница: календарь владельц
   })
 
   it('владелец без доступности — понятное сообщение, а не пустой экран', async () => {
-    vi.stubGlobal('fetch', vi.fn(async () => json(200, [])))
+    stubApi({ slots: [] })
     renderGuest()
 
     expect(await screen.findByText(ru.noAvailability)).toBeInTheDocument()

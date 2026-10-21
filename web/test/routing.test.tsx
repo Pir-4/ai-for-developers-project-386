@@ -6,25 +6,20 @@ import App from '../src/App.tsx'
 import { appCopy } from '../src/content/app.ts'
 import { landingCopy } from '../src/content/landing.ts'
 import { LocaleProvider } from '../src/i18n.tsx'
+import { json, stubFetch } from './fetch-stub.ts'
 
 const ru = appCopy.ru
 const en = appCopy.en
 const ruLanding = landingCopy.ru
 
-// Любой рендер App дергает fetch (доступность, слоты, встречи) — стаб по умолчанию: пустой список.
-function stubFetch(respond: () => Response = emptyList) {
-  vi.stubGlobal('fetch', vi.fn(async () => respond()))
-}
-
-function emptyList(): Response {
-  return json(200, [])
-}
-
-function json(status: number, body: unknown): Response {
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: { 'Content-Type': 'application/json' },
-  })
+// Любой рендер App дергает API (доступность, типы, слоты, встречи) — стаб по
+// умолчанию: пустые списки, а конкретного типа встречи нет (404).
+function stubApi() {
+  stubFetch(({ url }) =>
+    /\/event-types\/\d+$/.test(url)
+      ? json(404, { message: 'event type not found' })
+      : json(200, []),
+  )
 }
 
 function renderApp(path = '/') {
@@ -48,7 +43,7 @@ afterEach(() => {
 
 describe('клиентские роуты', () => {
   it('/ рендерит лендинг', () => {
-    stubFetch()
+    stubApi()
     renderApp('/')
     expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent(
       'Запись на звонок за 30 секунд',
@@ -56,7 +51,7 @@ describe('клиентские роуты', () => {
   })
 
   it('/login рендерит форму входа', () => {
-    stubFetch()
+    stubApi()
     renderApp('/login')
     expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent(
       ru.login.title,
@@ -70,7 +65,7 @@ describe('клиентские роуты', () => {
   })
 
   it('голый /owner редиректит на /login', () => {
-    stubFetch()
+    stubApi()
     renderApp('/owner')
     expect(window.location.pathname).toBe('/login')
     expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent(
@@ -79,7 +74,7 @@ describe('клиентские роуты', () => {
   })
 
   it('/owner/:email рендерит кабинет владельца', () => {
-    stubFetch()
+    stubApi()
     renderApp('/owner/owner@example.com')
     expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent(
       ru.owner.title,
@@ -95,29 +90,33 @@ describe('клиентские роуты', () => {
     }
   })
 
-  it('/book/:email рендерит календарь владельца для гостя', async () => {
-    stubFetch()
+  it('/book/:email рендерит каталог типов встреч владельца', async () => {
+    stubApi()
     renderApp('/book/owner@example.com')
+    expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent(
+      ru.guestCatalog.title,
+    )
+    expect(screen.getByText(/owner@example\.com/)).toBeInTheDocument()
+    expect(await screen.findByText(ru.guestCatalog.empty)).toBeInTheDocument()
+  })
+
+  it('/book/:email/:eventTypeId рендерит запись на тип встречи', async () => {
+    stubApi()
+    renderApp('/book/owner@example.com/5')
     expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent(
       ru.guest.title,
     )
-    expect(screen.getByText('owner@example.com')).toBeInTheDocument()
     for (const section of [ru.guest.dayLabel, ru.guest.timeLabel]) {
       expect(
         screen.getByRole('heading', { level: 3, name: section }),
       ).toBeInTheDocument()
     }
-    // Длительности 15/30/45 — выбор гостя, а не типы встреч владельца.
-    for (const minutes of [15, 30, 45]) {
-      expect(
-        screen.getByRole('radio', { name: `${minutes} мин` }),
-      ).toBeInTheDocument()
-    }
-    expect(await screen.findByText(ru.guest.noAvailability)).toBeInTheDocument()
+    // Тип не найден — гость видит это, а не пустой календарь.
+    expect(await screen.findByText(ru.guest.eventTypeNotFound)).toBeInTheDocument()
   })
 
   it('неизвестный путь — страница «не найдено»', () => {
-    stubFetch()
+    stubApi()
     renderApp('/no-such-page')
     expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent(
       ru.notFound.title,
@@ -130,7 +129,7 @@ describe('клиентские роуты', () => {
 
 describe('вход по email (логин)', () => {
   it('валидный email: переход в зону владельца, email запомнен', async () => {
-    stubFetch()
+    stubApi()
     const user = userEvent.setup()
     renderApp('/login')
     await user.type(
@@ -149,7 +148,7 @@ describe('вход по email (логин)', () => {
   })
 
   it('невалидный email: ошибка, без перехода', async () => {
-    stubFetch()
+    stubApi()
     const user = userEvent.setup()
     renderApp('/login')
     await user.type(
@@ -164,7 +163,7 @@ describe('вход по email (логин)', () => {
   })
 
   it('последний email подставляется при возврате', () => {
-    stubFetch()
+    stubApi()
     window.localStorage.setItem('owner.email', 'saved@example.com')
     renderApp('/login')
     expect(
@@ -175,7 +174,7 @@ describe('вход по email (логин)', () => {
 
 describe('шапка: вход в «Мои встречи»', () => {
   it('без запомненного email показывает «Создать встречу» → /owner', () => {
-    stubFetch()
+    stubApi()
     renderApp('/')
     const banner = screen.getByRole('banner')
     expect(
@@ -187,7 +186,7 @@ describe('шапка: вход в «Мои встречи»', () => {
   })
 
   it('с запомненным email показывает «Мои встречи» → /owner/<email>', () => {
-    stubFetch()
+    stubApi()
     window.localStorage.setItem('owner.email', 'saved@example.com')
     renderApp('/')
     const banner = screen.getByRole('banner')
@@ -200,7 +199,7 @@ describe('шапка: вход в «Мои встречи»', () => {
   })
 
   it('после входа по email шапка сразу переключается на «Мои встречи»', async () => {
-    stubFetch()
+    stubApi()
     const user = userEvent.setup()
     renderApp('/login')
     await user.type(
@@ -223,8 +222,9 @@ describe('переключатель языка на каждой страниц
     '/login',
     '/owner/owner@example.com',
     '/book/owner@example.com',
+    '/book/owner@example.com/5',
   ])('%s: RU/EN переключают язык страницы', async (path) => {
-    stubFetch()
+    stubApi()
     const user = userEvent.setup()
     renderApp(path)
 
@@ -237,7 +237,9 @@ describe('переключатель языка на каждой страниц
         ? en.login.title
         : path.startsWith('/owner')
           ? en.owner.title
-          : en.guest.title,
+          : path === '/book/owner@example.com'
+            ? en.guestCatalog.title
+            : en.guest.title,
     )
   })
 })
