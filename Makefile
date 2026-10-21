@@ -1,4 +1,4 @@
-.PHONY: setup run generate test lint docker-build docker-run
+.PHONY: setup run generate test test-e2e lint docker-build docker-run
 
 setup:
 	npm ci
@@ -11,6 +11,9 @@ generate:
 
 test:
 	npm test
+
+test-e2e:
+	npm run test:e2e
 
 lint:
 	npm run lint
