@@ -3,10 +3,12 @@ import { expect, test, type Page } from "@playwright/test";
 // The full booking scenario through the UI, as the reviewer asked:
 // the owner signs in, creates an event type and opens a day; a guest picks the
 // type, the day and a free slot and books it; the owner sees the meeting; the
-// next guest sees that slot as taken.
+// next guest sees that slot as taken — in the booked type and in an
+// overlapping slot of the owner's other type.
 
 const ownerEmail = `owner-${Date.now()}@example.com`;
 const eventTypeName = "Консультация";
+const longTypeName = "Стратегическая сессия";
 
 // Tomorrow in the browser's zone (Europe/Moscow, see playwright.config.ts) —
 // far enough ahead that the 11:00 slot has not started yet.
@@ -30,7 +32,7 @@ async function pickTomorrow(page: Page) {
   await day.click();
 }
 
-test("owner creates an event type, a guest books it, the owner sees the meeting", async ({
+test("owner creates event types, a guest books one, the booking blocks both types", async ({
   page,
 }) => {
   // Owner: sign in by email.
@@ -47,6 +49,15 @@ test("owner creates an event type, a guest books it, the owner sees the meeting"
   await expect(page.getByRole("combobox", { name: "Длительность" })).toHaveValue("30 мин");
   await page.getByRole("button", { name: "Создать тип" }).click();
   await expect(page.getByRole("article").filter({ hasText: eventTypeName })).toBeVisible();
+
+  // Owner: a second, 45-minute type over the same calendar.
+  await page.getByLabel("Название").fill(longTypeName);
+  await page.getByLabel("Описание").fill("Подробный разбор за 45 минут");
+  await page.getByRole("combobox", { name: "Длительность" }).click();
+  await page.getByRole("option", { name: "45 мин" }).click();
+  await expect(page.getByRole("combobox", { name: "Длительность" })).toHaveValue("45 мин");
+  await page.getByRole("button", { name: "Создать тип" }).click();
+  await expect(page.getByRole("article").filter({ hasText: longTypeName })).toBeVisible();
 
   // Owner: open tomorrow 11:00–15:00 (the editor's default interval).
   await pickTomorrow(page);
@@ -87,4 +98,17 @@ test("owner creates an event type, a guest books it, the owner sees the meeting"
   await expect(taken).toContainText("Занято");
   await expect(taken).toBeDisabled();
   await expect(page.getByRole("button", { name: /11:30 - 12:00/ })).toBeEnabled();
+
+  // Next guest, the other type: its 11:00–11:45 slot overlaps the booked
+  // 11:00–11:30 and is taken too; 11:45–12:30 clears it and stays free.
+  await page.goto(`/book/${encodeURIComponent(ownerEmail)}`);
+  await page.getByRole("link", { name: new RegExp(longTypeName) }).click();
+  await expect(page.getByRole("heading", { level: 1, name: longTypeName })).toBeVisible();
+  await pickTomorrow(page);
+  const overlapping = page.getByRole("button", { name: /11:00 - 11:45/ });
+  await expect(overlapping).toContainText("Занято");
+  await expect(overlapping).toBeDisabled();
+  const clear = page.getByRole("button", { name: /11:45 - 12:30/ });
+  await expect(clear).toContainText("Свободно");
+  await expect(clear).toBeEnabled();
 });
