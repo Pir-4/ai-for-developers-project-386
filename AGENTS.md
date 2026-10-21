@@ -60,7 +60,8 @@ Behavior reference — video in README: https://files.hexlet.app/a/2ipc5m
   sources in `contract/`; needs Node ≥ 22.18 (`@hey-api/openapi-ts`), i.e. the nvm Node 22 above
 - `make test` — Vitest; a single test: `npm test -w server -- test/health.test.ts`
 - `make test-e2e` — Playwright (`e2e/`, `playwright.config.ts`): builds the app, serves it on port 8123 with a
-  throwaway `DB_PATH`, runs the full booking scenario in Chromium (first time: `npx playwright install chromium`)
+  throwaway `DB_PATH`, runs the full booking scenario in Chromium (first time: `npx playwright install chromium`);
+  `E2E_BASE_URL=http://localhost:8001 npx playwright test` runs it against an already running instance (e.g. Docker)
 - `make lint` — ESLint (flat config at the root, typescript-eslint)
 - `make docker-build` / `make docker-run` — image `call-booking`, port 8000
 
