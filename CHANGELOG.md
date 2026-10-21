@@ -1,5 +1,28 @@
 # Changelog
 
+## [0.3.0](https://github.com/Pir-4/ai-for-developers-project-386/compare/call-booking-v0.2.0...call-booking-v0.3.0) (2026-10-21)
+
+
+### ⚠ BREAKING CHANGES
+
+* **web:** the guest no longer chooses a 15/30/45 duration;
+* **server:** migration 005 rebuilds the bookings table; existing bookings are dropped because they have no event type.
+* **contract:** GET /owners/{ownerEmail}/slots?duration= and POST /owners/{ownerEmail}/bookings are replaced by /owners/{ownerEmail}/event-types/{eventTypeId}/slots and .../bookings; the MeetingDuration enum is removed.
+
+### Features
+
+* **contract:** restore event types and generate the web client sdk ([d42c4dc](https://github.com/Pir-4/ai-for-developers-project-386/commit/d42c4dcd71574f87270e25945c429b0cf4dff03f))
+* **server:** event types with per-type slots and bookings ([7dc3875](https://github.com/Pir-4/ai-for-developers-project-386/commit/7dc38757f46ae5b6ede881e6f63346ce991b4059))
+* **web:** guest picks an event type first, api calls go through the generated sdk ([3d4397d](https://github.com/Pir-4/ai-for-developers-project-386/commit/3d4397d42d8b0f6ba5e11ed1ebabf1983506af04))
+
+
+### Bug Fixes
+
+* **server:** replace copied migrations on rebuild instead of nesting them ([cc2c68c](https://github.com/Pir-4/ai-for-developers-project-386/commit/cc2c68c73cef4ed547ccaad78ec8c4ffd9a5d3a2))
+* **server:** store canonical utc booking start and reject blank event type fields ([aee1935](https://github.com/Pir-4/ai-for-developers-project-386/commit/aee193593b0cff57d7f1f13a318e6e37ca54abd2))
+* **web:** handle malformed event type links and stale state on the guest and owner pages ([6b18ab3](https://github.com/Pir-4/ai-for-developers-project-386/commit/6b18ab36c8ca42f584bc2ed596490d30a94ae089))
+* **web:** make hero "how it works" button scroll to the anchor ([31c78a5](https://github.com/Pir-4/ai-for-developers-project-386/commit/31c78a55c293dd4209803ac064a99d1c452dfc37))
+
 ## [0.2.0](https://github.com/Pir-4/ai-for-developers-project-386/compare/call-booking-v0.1.0...call-booking-v0.2.0) (2026-10-07)
 
 
