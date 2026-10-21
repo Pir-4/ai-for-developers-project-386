@@ -2,7 +2,7 @@ import { MantineProvider } from '@mantine/core'
 import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import dayjs from 'dayjs'
-import { MemoryRouter, Route, Routes } from 'react-router'
+import { MemoryRouter, Route, Routes, useNavigate } from 'react-router'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { appCopy } from '../src/content/app.ts'
 import { LocaleProvider } from '../src/i18n.tsx'
@@ -329,5 +329,47 @@ describe('кабинет владельца: типы встреч', () => {
     expect(
       await screen.findByText('must NOT have more than 100 characters'),
     ).toBeInTheDocument()
+  })
+})
+
+describe('кабинет владельца: смена владельца', () => {
+  it('не показывает типы встреч прежнего владельца, пока грузятся новые', async () => {
+    const other = 'other@example.com'
+    stubFetch(({ url }) => {
+      if (url.includes(encodeURIComponent(other))) return new Promise<Response>(() => {})
+      if (url.includes('/event-types')) {
+        return json(200, [
+          { id: 3, ownerEmail: owner, name: 'Консультация', description: 'Разбор', durationMinutes: 45 },
+        ])
+      }
+      return json(200, [])
+    })
+
+    function SwitchOwner() {
+      const navigate = useNavigate()
+      return (
+        <button type="button" onClick={() => navigate(`/owner/${encodeURIComponent(other)}`)}>
+          другой владелец
+        </button>
+      )
+    }
+
+    const user = userEvent.setup()
+    render(
+      <MantineProvider>
+        <LocaleProvider>
+          <MemoryRouter initialEntries={[`/owner/${encodeURIComponent(owner)}`]}>
+            <SwitchOwner />
+            <Routes>
+              <Route path="/owner/:email" element={<OwnerPage />} />
+            </Routes>
+          </MemoryRouter>
+        </LocaleProvider>
+      </MantineProvider>,
+    )
+    expect(await screen.findByText('Консультация')).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'другой владелец' }))
+    expect(screen.queryByText('Консультация')).not.toBeInTheDocument()
   })
 })

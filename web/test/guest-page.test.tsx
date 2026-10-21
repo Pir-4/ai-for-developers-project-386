@@ -182,6 +182,46 @@ describe('гостевая страница: запись на выбранны�
     expect(calls.some((call) => call.method === 'POST')).toBe(false)
   })
 
+  it('нечисловой id в ссылке — «такого типа нет», без запросов к API', async () => {
+    const calls = stubApi()
+    render(
+      <MantineProvider>
+        <LocaleProvider>
+          <MemoryRouter initialEntries={[`/book/${encodeURIComponent(owner)}/abc`]}>
+            <Routes>
+              <Route path="/book/:email/:eventTypeId" element={<GuestPage />} />
+            </Routes>
+          </MemoryRouter>
+        </LocaleProvider>
+      </MantineProvider>,
+    )
+    expect(await screen.findByText(ru.eventTypeNotFound)).toBeInTheDocument()
+    expect(calls).toEqual([])
+  })
+
+  it('409 и неудачное обновление лестницы — прежняя лестница остаётся на экране', async () => {
+    let slotRequests = 0
+    stubFetch(({ url, method }) => {
+      if (method === 'POST') return json(409, { message: 'slot is already booked' })
+      if (url.endsWith('/slots')) {
+        slotRequests += 1
+        return slotRequests === 1 ? json(200, ladder) : json(500, { message: 'boom' })
+      }
+      return json(200, consult)
+    })
+    const user = userEvent.setup()
+    renderGuest()
+
+    await user.click(await screen.findByRole('button', { name: /11:00 - 11:30/ }))
+    await user.type(screen.getByLabelText(ru.nameLabel), 'Гость')
+    await user.type(screen.getByLabelText(ru.emailLabel), 'guest@example.com')
+    await user.click(screen.getByRole('button', { name: ru.submit }))
+
+    expect(await screen.findByText(ru.slotTaken)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /12:00 - 12:30/ })).toBeInTheDocument()
+    expect(screen.queryByText(appCopy.ru.errors.network)).not.toBeInTheDocument()
+  })
+
   it('409 — сообщение и обновлённая лестница вместо потерянной брони', async () => {
     stubApi({ bookingStatus: 409 })
     const user = userEvent.setup()

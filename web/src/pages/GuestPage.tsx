@@ -66,6 +66,9 @@ export function GuestPage() {
   const { email = '', eventTypeId: eventTypeParam = '' } = useParams()
   const ownerEmail = decodeURIComponent(email)
   const eventTypeId = Number(eventTypeParam)
+  // A mangled link (/book/:email/abc) names no event type: don't ask the API,
+  // which would only answer 422 for the malformed path.
+  const validEventTypeId = Number.isInteger(eventTypeId) && eventTypeId > 0
   const t = useAppText().guest
   const errorsText = useAppText().errors
   const shared = useAppText().shared
@@ -92,6 +95,11 @@ export function GuestPage() {
 
   useEffect(() => {
     let cancelled = false
+    setEventType(null)
+    if (!validEventTypeId) {
+      setEventTypeState('notFound')
+      return
+    }
     setEventTypeState('loading')
     getEventType(ownerEmail, eventTypeId)
       .then((loaded) => {
@@ -105,12 +113,14 @@ export function GuestPage() {
     return () => {
       cancelled = true
     }
-  }, [ownerEmail, eventTypeId])
+  }, [ownerEmail, eventTypeId, validEventTypeId])
 
   useEffect(() => {
     let cancelled = false
-    setSlotsState('loading')
+    setSlots([])
     setSelectedStart(null)
+    if (!validEventTypeId) return
+    setSlotsState('loading')
     listSlots(ownerEmail, eventTypeId)
       .then((loaded) => {
         if (cancelled) return
@@ -123,7 +133,7 @@ export function GuestPage() {
     return () => {
       cancelled = true
     }
-  }, [ownerEmail, eventTypeId])
+  }, [ownerEmail, eventTypeId, validEventTypeId])
 
   // The flat ladder, binned into the guest's own calendar days.
   const byDate = useMemo(() => {
@@ -166,10 +176,13 @@ export function GuestPage() {
       if (err instanceof ApiConflictError) {
         setSlotTaken(true)
         setSelectedStart(null)
+        // Refresh the ladder so the taken cell shows as busy. If the refresh
+        // fails, keep the ladder already on screen rather than hiding it.
         try {
           setSlots(await listSlots(ownerEmail, eventTypeId))
+          setSlotsState('ready')
         } catch {
-          setSlotsState('error')
+          // keep the current slots and state
         }
       } else if (err instanceof ApiValidationError) {
         const serverErrors: BookingFieldErrors = {}

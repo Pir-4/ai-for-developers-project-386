@@ -109,6 +109,9 @@ export function OwnerPage() {
 
   useEffect(() => {
     let cancelled = false
+    // A different owner in the URL starts from a clean slate, not the previous owner's data.
+    setAvailabilityState([])
+    setLoadFailed(false)
     listAvailability(ownerEmail)
       .then((loaded) => {
         if (!cancelled) setAvailabilityState(loaded)
@@ -123,6 +126,8 @@ export function OwnerPage() {
 
   useEffect(() => {
     let cancelled = false
+    setEventTypes([])
+    setEventTypesFailed(false)
     listEventTypes(ownerEmail)
       .then((loaded) => {
         if (!cancelled) setEventTypes(loaded)
@@ -137,6 +142,8 @@ export function OwnerPage() {
 
   useEffect(() => {
     let cancelled = false
+    setMeetings([])
+    setMeetingsFailed(false)
     listMeetings(ownerEmail)
       .then((loaded) => {
         if (!cancelled) setMeetings(loaded)
