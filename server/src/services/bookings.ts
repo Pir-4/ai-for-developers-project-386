@@ -1,6 +1,7 @@
 import type { DatabaseSync } from "node:sqlite";
 import type { FastifyReply, FastifyRequest } from "fastify";
 import type { components } from "../generated/schema.js";
+import { createEventTypeLoader } from "./event-types.js";
 import { createLadderLoader } from "./ladder-source.js";
 
 type Booking = components["schemas"]["Booking"];
@@ -13,23 +14,29 @@ function invalidStart(message: string): ValidationError {
   return { message: "invalid start", errors: [{ path: "start", message }] };
 }
 
-/** POST /api/owners/:ownerEmail/bookings — бронирует слот на календаре владельца. */
+/**
+ * POST /api/owners/:ownerEmail/event-types/:eventTypeId/bookings — бронирует слот
+ * типа встречи на календаре владельца. Занятость общая для всех типов: бронь
+ * любого типа делает пересекающиеся ячейки других типов занятыми.
+ */
 export function createCreateBookingHandler(db: DatabaseSync, clock: () => Date) {
+  const loadEventType = createEventTypeLoader(db);
   const loadLadder = createLadderLoader(db);
   const insert = db.prepare(
-    `INSERT INTO bookings (owner_email, start, end, duration_minutes, guest_name, guest_email, created_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?)`,
+    `INSERT INTO bookings (event_type_id, owner_email, start, end, duration_minutes, guest_name, guest_email, created_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
   );
 
   return async (
     request: FastifyRequest<{
-      Params: { ownerEmail: string };
+      Params: { ownerEmail: string; eventTypeId: number };
       Body: CreateBookingBody;
     }>,
     reply: FastifyReply,
   ): Promise<Booking | NotFoundError | ConflictError | ValidationError> => {
     const { ownerEmail } = request.params;
-    const { guestEmail, start, durationMinutes } = request.body;
+    const eventTypeId = Number(request.params.eventTypeId);
+    const { guestEmail, start } = request.body;
     // "1–100 символов после trim" — контракт не проверяет длину сырой строки
     // (Ajv не умеет сначала обрезать пробелы), поэтому обе границы — здесь.
     const guestName = request.body.guestName.trim();
@@ -48,8 +55,16 @@ export function createCreateBookingHandler(db: DatabaseSync, clock: () => Date) 
 
     db.exec("BEGIN IMMEDIATE");
     try {
-      // Лестница пересчитывается здесь же, под той же транзакцией: гость может
-      // бронировать только то, что ему реально предлагалось.
+      // Тип встречи и лестница читаются здесь же, под той же транзакцией: гость
+      // может бронировать только то, что ему реально предлагалось.
+      const eventType = loadEventType(ownerEmail, eventTypeId);
+      if (!eventType) {
+        db.exec("ROLLBACK");
+        reply.code(404);
+        return { message: "event type not found" };
+      }
+      const { durationMinutes } = eventType;
+
       const { hasAvailability, cells } = loadLadder(
         ownerEmail,
         durationMinutes,
@@ -65,7 +80,7 @@ export function createCreateBookingHandler(db: DatabaseSync, clock: () => Date) 
       if (!cell) {
         db.exec("ROLLBACK");
         reply.code(422);
-        return invalidStart("must be a slot of the owner's ladder for this duration");
+        return invalidStart("must be a slot of the event type's ladder");
       }
       if (cell.status === "busy") {
         db.exec("ROLLBACK");
@@ -73,11 +88,15 @@ export function createCreateBookingHandler(db: DatabaseSync, clock: () => Date) 
         return { message: "slot is already booked" };
       }
 
+      // Обе границы — каноническим UTC ISO самой ячейки, а не сырой строкой
+      // запроса: "…T11:00:00+03:00" хранится как "…T08:00:00.000Z".
+      const bookedStart = new Date(cell.start).toISOString();
       const end = new Date(cell.end).toISOString();
       const createdAt = now.toISOString();
       const { lastInsertRowid } = insert.run(
+        eventTypeId,
         ownerEmail,
-        start,
+        bookedStart,
         end,
         durationMinutes,
         guestName,
@@ -89,8 +108,9 @@ export function createCreateBookingHandler(db: DatabaseSync, clock: () => Date) 
       reply.code(201);
       return {
         id: Number(lastInsertRowid),
+        eventTypeId,
         ownerEmail,
-        start,
+        start: bookedStart,
         end,
         durationMinutes,
         guestName,

@@ -3,7 +3,7 @@
 ## Project
 
 "Call booking" — a Hexlet learning project (ai-for-developers program): a simplified Cal.com.
-The owner declares availability on their calendar, a guest picks a duration (15, 30 or 45 minutes) and books a slot, the owner views the list of upcoming meetings.
+The owner creates event types (name, description, duration) and declares availability on their calendar; a guest picks an event type, then a date and a free slot of that type's length, and books it; the owner views the list of upcoming meetings.
 
 Deliberately **out of scope** (do not add): authentication, personal accounts, external calendar integrations.
 Behavior reference — video in README: https://files.hexlet.app/a/2ipc5m
@@ -23,21 +23,27 @@ Behavior reference — video in README: https://files.hexlet.app/a/2ipc5m
 - Node.js 22+, TypeScript (strict, ESM/NodeNext), npm workspaces: `contract/`, `server/` and `web/`.
 - `contract/` — the API contract: TypeSpec sources (`main.tsp`, `tspconfig.yaml`). `make generate` emits the
   OpenAPI 3.0 spec (`contract/openapi.yaml`), the JSON copy for the server runtime
-  (`server/src/generated/openapi.json`) and `openapi-typescript` types for server and web (`*/src/generated/schema.d.ts`).
+  (`server/src/generated/openapi.json`), `openapi-typescript` types for the server (`server/src/generated/schema.d.ts`)
+  and the web client SDK (`web/src/generated/api/`, `@hey-api/openapi-ts`, config `contract/openapi-ts.config.ts`).
+  The SDK generator requires Node ≥ 22.18 — run `make generate` with Node 22 from nvm (see Commands).
 - `server/` — Fastify 5. `src/app.ts` — `buildApp({ dbPath, clock })` (`clock` defaults to system time;
   tests inject a fixed one): `fastify-openapi-glue` registers routes and request
   validation from `src/generated/openapi.json` under the `/api` prefix (validation failures → 422 in the contract's
   `ValidationError` shape); `src/db/` — `node:sqlite` + an ordered-SQL migration runner (`PRAGMA user_version`,
   one transaction at startup; `.sql` files in `src/db/migrations`, copied to `dist` by the build);
   `src/services/` — hand-written handlers, one per operationId, assembled by `createServiceHandlers(db, clock)` in
-  `src/services/index.ts`, typed with the generated types. `src/index.ts` — startup on `PORT ?? 8000`.
+  `src/services/index.ts`, typed with the generated types. `src/index.ts` — startup on `PORT ?? 8000`, database
+  file `DB_PATH` (defaults to `data/app.db`).
   Tests — Vitest via `app.inject()` with `dbPath: ":memory:"`, located in `server/test/`.
 - `web/` — Vite 6 + React 19 + Mantine 9 + react-router (client routes `/`, `/login`, `/owner/:email`,
-  `/book/:email`; pages in `src/pages/`, copy in `src/content/`, `src/api.ts` — the typed API client).
+  `/book/:email` — the owner's event-type catalog, `/book/:email/:eventTypeId` — date and slot for that type;
+  pages in `src/pages/`, copy in `src/content/`). `src/api.ts` wraps the generated SDK and maps error responses to
+  typed errors — no hand-written `fetch`. Web tests stub the global `fetch` via `web/test/fetch-stub.ts`.
   Dev proxy `/api` → :8000 (`vite.config.ts`).
 - Production: a single process (`npm start`) serves both the API (`/api/*`) and static files from `web/dist` — there is no separate frontend server. Client routes get the SPA fallback (`index.html`); unknown `/api/*` stays JSON 404.
-- Time — UTC ISO 8601 strings only; interval bounds lie on the 15-minute grid, and a guest's slot duration
-  is 15, 30 or 45 minutes. The owner's browser converts the local wall time it displays to UTC; the server
+- Time — UTC ISO 8601 strings only; interval bounds lie on the 15-minute grid, and a slot's length is its
+  event type's duration (a multiple of 15, 15–240 minutes). A booking blocks overlapping slots of every event type
+  of the same owner. The owner's browser converts the local wall time it displays to UTC; the server
   stores and returns UTC instants verbatim, performing no timezone expansion and storing no IANA zone
   (see `docs/research/local-time-to-utc.md`).
 - DB — SQLite via `node:sqlite`, file `data/app.db` (default path is resolved from the repo root, so cwd does not matter). Requires local Node ≥ 22.13 (unflagged `node:sqlite`; the process prints an ExperimentalWarning on Node 22 — expected). `data/` is in .gitignore.
@@ -50,8 +56,12 @@ Behavior reference — video in README: https://files.hexlet.app/a/2ipc5m
 - `make setup` — `npm ci` (requires Node ≥ 22.13: `node:sqlite` unflagged; the local default `node`
   may be older, then use Node 22 from nvm: `export PATH="$HOME/.nvm/versions/node/v22.23.3/bin:$PATH"`)
 - `make run` — dev: backend :8000 + frontend :5173 (concurrently)
-- `make generate` — regenerate the API artifacts (OpenAPI spec + TS types) from the TypeSpec sources in `contract/`
+- `make generate` — regenerate the API artifacts (OpenAPI spec, server TS types, web client SDK) from the TypeSpec
+  sources in `contract/`; needs Node ≥ 22.18 (`@hey-api/openapi-ts`), i.e. the nvm Node 22 above
 - `make test` — Vitest; a single test: `npm test -w server -- test/health.test.ts`
+- `make test-e2e` — Playwright (`e2e/`, `playwright.config.ts`): builds the app, serves it on port 8123 with a
+  throwaway `DB_PATH`, runs the full booking scenario in Chromium (first time: `npx playwright install chromium`);
+  `E2E_BASE_URL=http://localhost:8001 npx playwright test` runs it against an already running instance (e.g. Docker)
 - `make lint` — ESLint (flat config at the root, typescript-eslint)
 - `make docker-build` / `make docker-run` — image `call-booking`, port 8000
 
@@ -60,6 +70,8 @@ Behavior reference — video in README: https://files.hexlet.app/a/2ipc5m
 - `vite@6`, `vitest@3`, `@fastify/static@9` are pinned for the local Node 22.11: vite 8 / vitest 4 require
   Node ≥ 22.12 (native rolldown binary), `@fastify/static@10` needs `require(esm)` from Node ≥ 22.12.
   If the local Node is upgraded to ≥ 22.12, the pins can be revisited. CI and Docker use fresh Node 22 — no issue there.
+- `@hey-api/openapi-ts` is pinned exactly (`0.99.0`): its output is committed and CI fails on drift, so a
+  generator bump must be a deliberate `make generate` + commit.
 - `jsdom@26` (devDep for web tests, pinned via root `overrides`): jsdom 27's CSS stack `require()`s
   an ESM-only package, which also needs `require(esm)` from Node ≥ 22.12.
 

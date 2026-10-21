@@ -1,10 +1,11 @@
 import { describe, expect, it } from "vitest";
 import { buildApp } from "../src/app.js";
+import { eventTypeUrls } from "./event-type-urls.js";
 
 const owner = "owner@example.com";
 const enc = encodeURIComponent(owner);
 const availabilityUrl = (date: string) => `/api/owners/${enc}/availability/${date}`;
-const bookingsUrl = `/api/owners/${enc}/bookings`;
+const { bookingsUrl } = eventTypeUrls(owner);
 const meetingsUrl = `/api/owners/${enc}/meetings`;
 
 const now = new Date("2024-01-10T09:47:00.000Z");
@@ -29,8 +30,8 @@ async function openAndBook(
   for (const time of times) {
     await app.inject({
       method: "POST",
-      url: bookingsUrl,
-      payload: { ...guest, start: iso(time), durationMinutes },
+      url: await bookingsUrl(app, durationMinutes),
+      payload: { ...guest, start: iso(time) },
     });
   }
 }
@@ -52,6 +53,8 @@ describe("будущие встречи владельца", () => {
     expect(meetings).toEqual([
       {
         id: expect.any(Number),
+        eventTypeId: expect.any(Number),
+        eventTypeName: "Встреча 45 мин",
         ownerEmail: owner,
         start: iso("11:15"),
         end: iso("12:00"),

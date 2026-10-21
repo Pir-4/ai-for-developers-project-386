@@ -136,67 +136,112 @@ op setAvailability(
 @get
 op listAvailability(@path ownerEmail: string): DayAvailability[];
 
-/**
- * Meeting length in minutes — the fixed set a guest may choose from.
- *
- * An enum rather than `@multipleOf`/`@minValue`/`@maxValue`: those do not reach
- * a query parameter's schema in the emitted OpenAPI, so 20 would slip past
- * request validation.
- */
-enum MeetingDuration {
-  quarterHour: 15,
-  halfHour: 30,
-  threeQuarters: 45,
+/** A kind of bookable meeting defined by an owner: name, description and duration. */
+model EventType {
+  /** Server-assigned identifier. */
+  id: int32;
+  /** Email of the owner this event type belongs to. */
+  ownerEmail: string;
+  /** Short display name shown to the owner and the guest. */
+  name: string;
+  /** What the meeting is about, shown to the guest. */
+  description: string;
+  /** Meeting length in minutes — every slot of this type is exactly this long. */
+  durationMinutes: int32;
 }
+
+/** Body for creating an event type. */
+model CreateEventTypeBody {
+  /** Short display name shown to the owner and the guest. */
+  @minLength(1)
+  @maxLength(100)
+  name: string;
+  /** What the meeting is about, shown to the guest. */
+  @minLength(1)
+  @maxLength(500)
+  description: string;
+  /** Meeting length in minutes: a multiple of 15, from 15 to 240. */
+  @multipleOf(15)
+  @minValue(15)
+  @maxValue(240)
+  durationMinutes: int32;
+}
+
+/** 201 — the created event type. */
+model CreatedEventTypeResponse is Response<201> {
+  @body body: EventType;
+}
+
+/** Create an event type for the owner. */
+@route("/owners/{ownerEmail}/event-types")
+@post
+op createEventType(
+  @path ownerEmail: string,
+  @body body: CreateEventTypeBody,
+): CreatedEventTypeResponse | UnprocessableEntityResponse;
+
+/** List the owner's event types, oldest first. */
+@route("/owners/{ownerEmail}/event-types")
+@get
+op listEventTypes(@path ownerEmail: string): EventType[];
+
+/** One of the owner's event types. */
+@route("/owners/{ownerEmail}/event-types/{eventTypeId}")
+@get
+op getEventType(
+  @path ownerEmail: string,
+  @path eventTypeId: int32,
+): EventType | NotFoundResponse;
 
 /** Whether a slot can still be booked. */
 union SlotStatus {
   /** Nothing of the owner's overlaps it. */
   free: "free",
 
-  /** It intersects one of the owner's bookings. */
+  /** It intersects one of the owner's bookings, of any event type. */
   busy: "busy",
 }
 
-/** One rung of the slot ladder: a candidate meeting of the requested duration. */
+/** One rung of the slot ladder: a candidate meeting of the event type's duration. */
 model Slot {
   /** Start of the slot, UTC ISO 8601. */
   start: utcDateTime;
-  /** End of the slot, UTC ISO 8601 (`start` + the requested duration). */
+  /** End of the slot, UTC ISO 8601 (`start` + the event type's duration). */
   end: utcDateTime;
   /** Whether it is still bookable. */
   status: SlotStatus;
 }
 
 /**
- * The owner's slot ladder for the whole booking window, ordered by start.
+ * The event type's slot ladder for the whole booking window, ordered by start.
  *
  * Cells are laid end to end from the start of each availability interval, each
- * exactly `duration` minutes long; a trailing remainder that does not fit is
- * dropped, and cells never span two intervals. Cells that have already started
- * are omitted entirely. The response is deliberately flat: the guest's browser
+ * exactly the event type's duration long; a trailing remainder that does not fit
+ * is dropped, and cells never span two intervals. Cells that have already started
+ * are omitted entirely. A cell is busy when it overlaps any booking of the owner,
+ * whatever its event type. The response is deliberately flat: the guest's browser
  * groups it into the guest's own local dates.
  */
-@route("/owners/{ownerEmail}/slots")
+@route("/owners/{ownerEmail}/event-types/{eventTypeId}/slots")
 @get
 op listSlots(
   @path ownerEmail: string,
+  @path eventTypeId: int32,
+): Slot[] | NotFoundResponse;
 
-  /** Meeting length in minutes. */
-  @query duration: MeetingDuration,
-): Slot[];
-
-/** A reservation of a slot, holding the guest's name and email. */
+/** A reservation of a slot of an event type, holding the guest's name and email. */
 model Booking {
   /** Server-assigned identifier. */
   id: int32;
+  /** The event type this booking is for. */
+  eventTypeId: int32;
   /** Email of the owner this booking belongs to. */
   ownerEmail: string;
   /** Start of the booked interval, UTC ISO 8601. */
   start: utcDateTime;
   /** End of the booked interval, UTC ISO 8601 (`start` + `durationMinutes`). */
   end: utcDateTime;
-  /** Meeting length in minutes: 15, 30 or 45. */
+  /** Meeting length in minutes, taken from the event type at booking time. */
   durationMinutes: int32;
   /** The guest's name. */
   guestName: string;
@@ -213,10 +258,8 @@ model CreateBookingBody {
   /** The guest's email. */
   @pattern("^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$")
   guestEmail: string;
-  /** The slot's start time, UTC ISO 8601: must be a free rung of the owner's ladder for this duration. */
+  /** The slot's start time, UTC ISO 8601: must be a free rung of the event type's ladder. */
   start: utcDateTime;
-  /** Meeting length in minutes. */
-  durationMinutes: MeetingDuration;
 }
 
 /** 201 — the created booking. */
@@ -235,11 +278,12 @@ model ConflictResponse is Response<409> {
   @body body: ConflictError;
 }
 
-/** Book a slot on the owner's calendar. */
-@route("/owners/{ownerEmail}/bookings")
+/** Book a slot of the event type on the owner's calendar. */
+@route("/owners/{ownerEmail}/event-types/{eventTypeId}/bookings")
 @post
 op createBooking(
   @path ownerEmail: string,
+  @path eventTypeId: int32,
   @body body: CreateBookingBody,
 ):
   | CreatedBookingResponse
@@ -251,6 +295,10 @@ op createBooking(
 model Meeting {
   /** Server-assigned identifier of the booking. */
   id: int32;
+  /** The event type this meeting is for. */
+  eventTypeId: int32;
+  /** Name of the event type, shown in the row. */
+  eventTypeName: string;
   /** Email of the owner this meeting belongs to. */
   ownerEmail: string;
   /** Start of the meeting, UTC ISO 8601. */

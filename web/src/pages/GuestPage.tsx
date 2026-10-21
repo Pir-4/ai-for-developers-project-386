@@ -1,12 +1,12 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react'
-import { useParams } from 'react-router'
+import { Link, useParams } from 'react-router'
 import {
+  Anchor,
   Box,
   Button,
   Card,
   Container,
   SimpleGrid,
-  SegmentedControl,
   Stack,
   Text,
   TextInput,
@@ -15,15 +15,17 @@ import {
 import { DatePicker } from '@mantine/dates'
 import {
   ApiConflictError,
+  ApiNotFoundError,
   ApiValidationError,
-  MEETING_DURATIONS,
   createBooking,
+  getEventType,
   listSlots,
   type Booking,
-  type MeetingDuration,
+  type EventType,
   type Slot,
 } from '../api.ts'
 import { useAppText } from '../i18n.tsx'
+import { guestHref } from '../links.ts'
 import {
   formatLocalDateTime,
   formatLocalTime,
@@ -52,20 +54,29 @@ function addDays(date: Date, days: number): Date {
 }
 
 /**
- * Guest entry point (/book/:email): the owner's calendar.
+ * One event type's booking page (/book/:email/:eventTypeId): the guest has
+ * already picked the type in the catalog, now picks a date and a free slot of
+ * the type's length, then leaves a name and an email.
  *
  * The slots API answers flat; the binning into calendar days happens here, in
  * the guest's own timezone, so a cell at the edge of a day lands on the date
  * the guest would call it (see issue #39).
  */
 export function GuestPage() {
-  const { email = '' } = useParams()
+  const { email = '', eventTypeId: eventTypeParam = '' } = useParams()
   const ownerEmail = decodeURIComponent(email)
+  const eventTypeId = Number(eventTypeParam)
+  // A mangled link (/book/:email/abc) names no event type: don't ask the API,
+  // which would only answer 422 for the malformed path.
+  const validEventTypeId = Number.isInteger(eventTypeId) && eventTypeId > 0
   const t = useAppText().guest
   const errorsText = useAppText().errors
   const shared = useAppText().shared
 
-  const [duration, setDuration] = useState<MeetingDuration>(30)
+  const [eventType, setEventType] = useState<EventType | null>(null)
+  const [eventTypeState, setEventTypeState] = useState<
+    'loading' | 'ready' | 'notFound' | 'error'
+  >('loading')
   const [slotsState, setSlotsState] = useState<'loading' | 'ready' | 'error'>('loading')
   const [slots, setSlots] = useState<Slot[]>([])
 
@@ -84,9 +95,33 @@ export function GuestPage() {
 
   useEffect(() => {
     let cancelled = false
-    setSlotsState('loading')
+    setEventType(null)
+    if (!validEventTypeId) {
+      setEventTypeState('notFound')
+      return
+    }
+    setEventTypeState('loading')
+    getEventType(ownerEmail, eventTypeId)
+      .then((loaded) => {
+        if (cancelled) return
+        setEventType(loaded)
+        setEventTypeState('ready')
+      })
+      .catch((err) => {
+        if (!cancelled) setEventTypeState(err instanceof ApiNotFoundError ? 'notFound' : 'error')
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [ownerEmail, eventTypeId, validEventTypeId])
+
+  useEffect(() => {
+    let cancelled = false
+    setSlots([])
     setSelectedStart(null)
-    listSlots(ownerEmail, duration)
+    if (!validEventTypeId) return
+    setSlotsState('loading')
+    listSlots(ownerEmail, eventTypeId)
       .then((loaded) => {
         if (cancelled) return
         setSlots(loaded)
@@ -98,7 +133,7 @@ export function GuestPage() {
     return () => {
       cancelled = true
     }
-  }, [ownerEmail, duration])
+  }, [ownerEmail, eventTypeId, validEventTypeId])
 
   // The flat ladder, binned into the guest's own calendar days.
   const byDate = useMemo(() => {
@@ -131,21 +166,23 @@ export function GuestPage() {
     setBooking(true)
     try {
       setConfirmed(
-        await createBooking(ownerEmail, {
+        await createBooking(ownerEmail, eventTypeId, {
           guestName: name,
           guestEmail: mail,
           start: selectedStart,
-          durationMinutes: duration,
         }),
       )
     } catch (err) {
       if (err instanceof ApiConflictError) {
         setSlotTaken(true)
         setSelectedStart(null)
+        // Refresh the ladder so the taken cell shows as busy. If the refresh
+        // fails, keep the ladder already on screen rather than hiding it.
         try {
-          setSlots(await listSlots(ownerEmail, duration))
+          setSlots(await listSlots(ownerEmail, eventTypeId))
+          setSlotsState('ready')
         } catch {
-          setSlotsState('error')
+          // keep the current slots and state
         }
       } else if (err instanceof ApiValidationError) {
         const serverErrors: BookingFieldErrors = {}
@@ -163,6 +200,26 @@ export function GuestPage() {
     }
   }
 
+  const backToCatalog = (
+    <Anchor component={Link} to={guestHref(ownerEmail)} size="sm">
+      {t.backToCatalog}
+    </Anchor>
+  )
+
+  if (eventTypeState === 'notFound' || eventTypeState === 'error') {
+    return (
+      <Container size="sm" py="xl">
+        <Stack gap="md">
+          <Title order={1}>{t.title}</Title>
+          <Text c="dimmed">
+            {eventTypeState === 'notFound' ? t.eventTypeNotFound : errorsText.network}
+          </Text>
+          {backToCatalog}
+        </Stack>
+      </Container>
+    )
+  }
+
   if (confirmed) {
     return (
       <Container size="sm" py="xl">
@@ -170,6 +227,7 @@ export function GuestPage() {
           <Title order={1}>{t.confirmedTitle}</Title>
           <Card component="article" withBorder p="lg">
             <Stack gap="xs">
+              {eventType && <Text fw={700}>{eventType.name}</Text>}
               <Text size="sm">
                 {`${t.whenLabel}: ${formatLocalDateTime(confirmed.start)} (${timezone})`}
               </Text>
@@ -187,7 +245,10 @@ export function GuestPage() {
   return (
     <Container size="lg" py="xl">
       <Stack gap="lg">
-        <Title order={1}>{t.title}</Title>
+        <Stack gap="xs">
+          {backToCatalog}
+          <Title order={1}>{eventType?.name ?? t.title}</Title>
+        </Stack>
 
         <SimpleGrid cols={{ base: 1, md: 3 }} spacing="md">
             <Card component="section" withBorder p="lg">
@@ -198,22 +259,16 @@ export function GuestPage() {
                   </Text>
                   <Text fw={700}>{ownerEmail}</Text>
                 </Box>
-                <Box>
-                  <Text component="label" size="sm" fw={700} id="duration-label">
-                    {t.durationLabel}
-                  </Text>
-                  <SegmentedControl
-                    fullWidth
-                    mt="xs"
-                    aria-labelledby="duration-label"
-                    value={String(duration)}
-                    onChange={(value) => setDuration(Number(value) as MeetingDuration)}
-                    data={MEETING_DURATIONS.map((minutes) => ({
-                      value: String(minutes),
-                      label: `${minutes} ${shared.minutesSuffix}`,
-                    }))}
-                  />
-                </Box>
+                {eventType && (
+                  <Box>
+                    <Text c="dimmed" size="sm">
+                      {eventType.description}
+                    </Text>
+                    <Text size="sm" fw={700} mt="xs">
+                      {`${t.durationLabel}: ${eventType.durationMinutes} ${shared.minutesSuffix}`}
+                    </Text>
+                  </Box>
+                )}
                 <Text c="dimmed" size="xs">
                   {`${t.timezoneLabel}: ${timezone}`}
                 </Text>
@@ -299,7 +354,7 @@ export function GuestPage() {
             <form onSubmit={submitBooking} noValidate>
               <Stack gap="md">
                 <Text size="sm" fw={700}>
-                  {`${formatLocalTime(selectedStart)} · ${duration} ${shared.minutesSuffix}`}
+                  {`${formatLocalTime(selectedStart)} · ${eventType?.durationMinutes ?? ''} ${shared.minutesSuffix}`}
                 </Text>
                 <TextInput
                   label={t.nameLabel}

@@ -1,12 +1,13 @@
 import { MantineProvider } from '@mantine/core'
-import { render, screen } from '@testing-library/react'
+import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import dayjs from 'dayjs'
-import { MemoryRouter, Route, Routes } from 'react-router'
+import { MemoryRouter, Route, Routes, useNavigate } from 'react-router'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { appCopy } from '../src/content/app.ts'
 import { LocaleProvider } from '../src/i18n.tsx'
 import { OwnerPage } from '../src/pages/OwnerPage.tsx'
+import { json, stubFetch } from './fetch-stub.ts'
 
 const ru = appCopy.ru.owner
 const owner = 'owner@example.com'
@@ -38,41 +39,42 @@ function localIso(hours: number, minutes = 0): string {
   return date.toISOString()
 }
 
-function json(status: number, body: unknown): Response {
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: { 'Content-Type': 'application/json' },
-  })
-}
-
 function stubApi(
   options: {
     availability?: unknown[]
     meetings?: unknown[]
+    eventTypes?: unknown[]
     putStatus?: number
     blocking?: unknown[]
+    createTypeStatus?: number
   } = {},
 ) {
-  const calls: { url: string; init?: RequestInit }[] = []
-  vi.stubGlobal(
-    'fetch',
-    vi.fn(async (url: string, init?: RequestInit) => {
-      calls.push({ url, init })
-      if (init?.method === 'PUT') {
-        if (options.putStatus === 409) {
-          return json(409, {
-            message: 'availability cannot be withdrawn from under a booking',
-            meetings: options.blocking ?? [],
+  return stubFetch(({ url, method, body }) => {
+    if (method === 'PUT') {
+      if (options.putStatus === 409) {
+        return json(409, {
+          message: 'availability cannot be withdrawn from under a booking',
+          meetings: options.blocking ?? [],
+        })
+      }
+      const { intervals } = body as { intervals: unknown[] }
+      return json(200, { date: todayDate(), intervals })
+    }
+    if (url.includes('/event-types')) {
+      if (method === 'POST') {
+        if (options.createTypeStatus === 422) {
+          return json(422, {
+            message: 'invalid',
+            errors: [{ path: 'name', message: 'must NOT have more than 100 characters' }],
           })
         }
-        const body = JSON.parse(String(init.body)) as { intervals: unknown[] }
-        return json(200, { date: todayDate(), intervals: body.intervals })
+        return json(201, { id: 7, ownerEmail: owner, ...(body as object) })
       }
-      if (url.includes('/meetings')) return json(200, options.meetings ?? [])
-      return json(200, options.availability ?? [])
-    }),
-  )
-  return calls
+      return json(200, options.eventTypes ?? [])
+    }
+    if (url.includes('/meetings')) return json(200, options.meetings ?? [])
+    return json(200, options.availability ?? [])
+  })
 }
 
 function renderOwner() {
@@ -110,10 +112,10 @@ describe('кабинет владельца: календарь доступно
     await user.click(screen.getByRole('button', { name: ru.save }))
 
     expect(await screen.findByText(ru.saved)).toBeInTheDocument()
-    const put = calls.find((call) => call.init?.method === 'PUT')
+    const put = calls.find((call) => call.method === 'PUT')
     expect(put?.url).toContain(`/availability/${todayDate()}`)
     // Браузер сам переводит локальные 11:00–15:00 в UTC — сервер ничего не разворачивает.
-    expect(JSON.parse(String(put?.init?.body))).toEqual({
+    expect(put?.body).toEqual({
       intervals: [{ start: localIso(11), end: localIso(15) }],
     })
   })
@@ -146,7 +148,7 @@ describe('кабинет владельца: календарь доступно
     await user.click(screen.getByRole('button', { name: ru.save }))
 
     expect(screen.getByText(ru.intervalsOverlap)).toBeInTheDocument()
-    expect(calls.some((call) => call.init?.method === 'PUT')).toBe(false)
+    expect(calls.some((call) => call.method === 'PUT')).toBe(false)
   })
 
   it('интервал можно удалить', async () => {
@@ -180,11 +182,11 @@ describe('кабинет владельца: календарь доступно
     await user.click(screen.getByRole('button', { name: ru.save }))
 
     expect(await screen.findByText(ru.conflictTitle)).toBeInTheDocument()
-    expect(screen.getByText(/Гость/)).toBeInTheDocument()
+    expect(screen.getByText(/— Гость$/)).toBeInTheDocument()
     expect(screen.queryByText(ru.saved)).not.toBeInTheDocument()
   })
 
-  it('показывает одну ссылку на календарь, без типов встреч', async () => {
+  it('показывает ссылку на каталог типов встреч для гостя', async () => {
     stubApi()
     renderOwner()
     await screen.findByText(ru.dayClosed)
@@ -200,6 +202,8 @@ describe('кабинет владельца: календарь доступно
       meetings: [
         {
           id: 1,
+          eventTypeId: 3,
+          eventTypeName: 'Консультация',
           ownerEmail: owner,
           start: localIso(14),
           end: localIso(14, 45),
@@ -211,10 +215,10 @@ describe('кабинет владельца: календарь доступно
     })
     renderOwner()
 
-    expect(
-      await screen.findByText(/Гость <guest@example\.com>/),
-    ).toBeInTheDocument()
-    expect(screen.getByText('45 мин')).toBeInTheDocument()
+    const guestLine = await screen.findByText(/Гость <guest@example\.com>/)
+    const row = within(guestLine.closest('article') as HTMLElement)
+    expect(row.getByText('45 мин')).toBeInTheDocument()
+    expect(row.getByText('Консультация')).toBeInTheDocument()
   })
 
   it('пустой список встреч подписан', async () => {
@@ -228,6 +232,8 @@ describe('кабинет владельца: календарь доступно
       meetings: [
         {
           id: 1,
+          eventTypeId: 3,
+          eventTypeName: 'Консультация',
           ownerEmail: owner,
           start: localIso(14),
           end: localIso(14, 45),
@@ -247,5 +253,123 @@ describe('кабинет владельца: календарь доступно
       name: dayAccessibleName(anotherDayThisMonth()),
     })
     expect(emptyDay).not.toHaveAttribute('data-has-meeting')
+  })
+})
+
+describe('кабинет владельца: типы встреч', () => {
+  const consult = {
+    id: 3,
+    ownerEmail: owner,
+    name: 'Консультация',
+    description: 'Разбор вашей задачи',
+    durationMinutes: 45,
+  }
+
+  it('без типов — подсказка создать первый', async () => {
+    stubApi()
+    renderOwner()
+    expect(await screen.findByText(ru.eventTypesEmpty)).toBeInTheDocument()
+  })
+
+  it('перечисляет типы с длительностью и ссылкой на запись именно на этот тип', async () => {
+    stubApi({ eventTypes: [consult] })
+    renderOwner()
+
+    expect(await screen.findByText('Консультация')).toBeInTheDocument()
+    expect(screen.getByText('Разбор вашей задачи')).toBeInTheDocument()
+    expect(
+      screen.getByText(`http://localhost:3000/book/${encodeURIComponent(owner)}/3`),
+    ).toBeInTheDocument()
+  })
+
+  it('создаёт тип: название, описание и длительность уходят на сервер', async () => {
+    const calls = stubApi()
+    const user = userEvent.setup()
+    renderOwner()
+    await screen.findByText(ru.eventTypesEmpty)
+
+    await user.type(screen.getByLabelText(ru.typeNameLabel), 'Знакомство')
+    await user.type(screen.getByLabelText(ru.typeDescriptionLabel), 'Первый созвон')
+    await user.click(screen.getByRole('button', { name: ru.createEventType }))
+
+    expect(await screen.findByText('Знакомство')).toBeInTheDocument()
+    const post = calls.find((call) => call.method === 'POST')
+    expect(post?.url).toContain(`/api/owners/${encodeURIComponent(owner)}/event-types`)
+    expect(post?.body).toEqual({
+      name: 'Знакомство',
+      description: 'Первый созвон',
+      durationMinutes: 30,
+    })
+    expect(screen.queryByText(ru.eventTypesEmpty)).not.toBeInTheDocument()
+  })
+
+  it('пустые поля — ошибки у полей, запрос не уходит', async () => {
+    const calls = stubApi()
+    const user = userEvent.setup()
+    renderOwner()
+    await screen.findByText(ru.eventTypesEmpty)
+
+    await user.click(screen.getByRole('button', { name: ru.createEventType }))
+
+    expect(screen.getByText(ru.typeNameRequired)).toBeInTheDocument()
+    expect(screen.getByText(ru.typeDescriptionRequired)).toBeInTheDocument()
+    expect(calls.some((call) => call.method === 'POST')).toBe(false)
+  })
+
+  it('422 от сервера показывается у поля', async () => {
+    stubApi({ createTypeStatus: 422 })
+    const user = userEvent.setup()
+    renderOwner()
+    await screen.findByText(ru.eventTypesEmpty)
+
+    await user.type(screen.getByLabelText(ru.typeNameLabel), 'Знакомство')
+    await user.type(screen.getByLabelText(ru.typeDescriptionLabel), 'Первый созвон')
+    await user.click(screen.getByRole('button', { name: ru.createEventType }))
+
+    expect(
+      await screen.findByText('must NOT have more than 100 characters'),
+    ).toBeInTheDocument()
+  })
+})
+
+describe('кабинет владельца: смена владельца', () => {
+  it('не показывает типы встреч прежнего владельца, пока грузятся новые', async () => {
+    const other = 'other@example.com'
+    stubFetch(({ url }) => {
+      if (url.includes(encodeURIComponent(other))) return new Promise<Response>(() => {})
+      if (url.includes('/event-types')) {
+        return json(200, [
+          { id: 3, ownerEmail: owner, name: 'Консультация', description: 'Разбор', durationMinutes: 45 },
+        ])
+      }
+      return json(200, [])
+    })
+
+    function SwitchOwner() {
+      const navigate = useNavigate()
+      return (
+        <button type="button" onClick={() => navigate(`/owner/${encodeURIComponent(other)}`)}>
+          другой владелец
+        </button>
+      )
+    }
+
+    const user = userEvent.setup()
+    render(
+      <MantineProvider>
+        <LocaleProvider>
+          <MemoryRouter initialEntries={[`/owner/${encodeURIComponent(owner)}`]}>
+            <SwitchOwner />
+            <Routes>
+              <Route path="/owner/:email" element={<OwnerPage />} />
+            </Routes>
+          </MemoryRouter>
+        </LocaleProvider>
+      </MantineProvider>,
+    )
+    expect(await screen.findByText('Консультация')).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'другой владелец' }))
+    expect(screen.queryByText('Консультация')).not.toBeInTheDocument()
   })
 })

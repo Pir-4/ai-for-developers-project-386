@@ -175,6 +175,10 @@ Sources:
 
 ## Decision
 
+> **Update (2026-10, ADR 0002):** the `web/` client moved to `@hey-api/openapi-ts` — a generated SDK with one
+> function per operation — after the Hexlet review required a generated client SDK; `make generate` now needs
+> Node ≥ 22.18 locally. The server side below is unchanged.
+
 Adopt: **`@typespec/openapi3` (OpenAPI 3.0.0 YAML) → `openapi-typescript` + `openapi-fetch`
 for `web/` → `fastify-openapi-glue` + `openapi-typescript` types for `server/`.**
 

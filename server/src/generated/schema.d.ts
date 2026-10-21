@@ -59,7 +59,42 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/owners/{ownerEmail}/bookings": {
+    "/owners/{ownerEmail}/event-types": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description List the owner's event types, oldest first. */
+        get: operations["listEventTypes"];
+        put?: never;
+        /** @description Create an event type for the owner. */
+        post: operations["createEventType"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/owners/{ownerEmail}/event-types/{eventTypeId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description One of the owner's event types. */
+        get: operations["getEventType"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/owners/{ownerEmail}/event-types/{eventTypeId}/bookings": {
         parameters: {
             query?: never;
             header?: never;
@@ -68,8 +103,34 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** @description Book a slot on the owner's calendar. */
+        /** @description Book a slot of the event type on the owner's calendar. */
         post: operations["createBooking"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/owners/{ownerEmail}/event-types/{eventTypeId}/slots": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * @description The event type's slot ladder for the whole booking window, ordered by start.
+         *
+         *     Cells are laid end to end from the start of each availability interval, each
+         *     exactly the event type's duration long; a trailing remainder that does not fit
+         *     is dropped, and cells never span two intervals. Cells that have already started
+         *     are omitted entirely. A cell is busy when it overlaps any booking of the owner,
+         *     whatever its event type. The response is deliberately flat: the guest's browser
+         *     groups it into the guest's own local dates.
+         */
+        get: operations["listSlots"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -85,31 +146,6 @@ export interface paths {
         };
         /** @description List the owner's upcoming meetings (`end >= now`), ordered by start ascending. */
         get: operations["listMeetings"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/owners/{ownerEmail}/slots": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * @description The owner's slot ladder for the whole booking window, ordered by start.
-         *
-         *     Cells are laid end to end from the start of each availability interval, each
-         *     exactly `duration` minutes long; a trailing remainder that does not fit is
-         *     dropped, and cells never span two intervals. Cells that have already started
-         *     are omitted entirely. The response is deliberately flat: the guest's browser
-         *     groups it into the guest's own local dates.
-         */
-        get: operations["listSlots"];
         put?: never;
         post?: never;
         delete?: never;
@@ -144,13 +180,18 @@ export interface components {
             /** @description The guest's name, so the owner can tell which commitment holds the day. */
             guestName: string;
         };
-        /** @description A reservation of a slot, holding the guest's name and email. */
+        /** @description A reservation of a slot of an event type, holding the guest's name and email. */
         Booking: {
             /**
              * Format: int32
              * @description Server-assigned identifier.
              */
             id: number;
+            /**
+             * Format: int32
+             * @description The event type this booking is for.
+             */
+            eventTypeId: number;
             /** @description Email of the owner this booking belongs to. */
             ownerEmail: string;
             /**
@@ -165,7 +206,7 @@ export interface components {
             end: string;
             /**
              * Format: int32
-             * @description Meeting length in minutes: 15, 30 or 45.
+             * @description Meeting length in minutes, taken from the event type at booking time.
              */
             durationMinutes: number;
             /** @description The guest's name. */
@@ -191,11 +232,21 @@ export interface components {
             guestEmail: string;
             /**
              * Format: date-time
-             * @description The slot's start time, UTC ISO 8601: must be a free rung of the owner's ladder for this duration.
+             * @description The slot's start time, UTC ISO 8601: must be a free rung of the event type's ladder.
              */
             start: string;
-            /** @description Meeting length in minutes. */
-            durationMinutes: components["schemas"]["MeetingDuration"];
+        };
+        /** @description Body for creating an event type. */
+        CreateEventTypeBody: {
+            /** @description Short display name shown to the owner and the guest. */
+            name: string;
+            /** @description What the meeting is about, shown to the guest. */
+            description: string;
+            /**
+             * Format: int32
+             * @description Meeting length in minutes: a multiple of 15, from 15 to 240.
+             */
+            durationMinutes: number;
         };
         /** @description The intervals an owner has declared for one date. An empty list closes the day. */
         DayAvailability: {
@@ -207,6 +258,25 @@ export interface components {
             date: string;
             /** @description The declared intervals, ordered by start. */
             intervals: components["schemas"]["Interval"][];
+        };
+        /** @description A kind of bookable meeting defined by an owner: name, description and duration. */
+        EventType: {
+            /**
+             * Format: int32
+             * @description Server-assigned identifier.
+             */
+            id: number;
+            /** @description Email of the owner this event type belongs to. */
+            ownerEmail: string;
+            /** @description Short display name shown to the owner and the guest. */
+            name: string;
+            /** @description What the meeting is about, shown to the guest. */
+            description: string;
+            /**
+             * Format: int32
+             * @description Meeting length in minutes — every slot of this type is exactly this long.
+             */
+            durationMinutes: number;
         };
         /** @description One failed validation constraint of a request. */
         FieldError: {
@@ -249,6 +319,13 @@ export interface components {
              * @description Server-assigned identifier of the booking.
              */
             id: number;
+            /**
+             * Format: int32
+             * @description The event type this meeting is for.
+             */
+            eventTypeId: number;
+            /** @description Name of the event type, shown in the row. */
+            eventTypeName: string;
             /** @description Email of the owner this meeting belongs to. */
             ownerEmail: string;
             /**
@@ -271,15 +348,6 @@ export interface components {
             /** @description The guest's email. */
             guestEmail: string;
         };
-        /**
-         * @description Meeting length in minutes — the fixed set a guest may choose from.
-         *
-         *     An enum rather than `@multipleOf`/`@minValue`/`@maxValue`: those do not reach
-         *     a query parameter's schema in the emitted OpenAPI, so 20 would slip past
-         *     request validation.
-         * @enum {number}
-         */
-        MeetingDuration: 15 | 30 | 45;
         /** @description The referenced resource does not exist. */
         NotFoundError: {
             /** @description Human-readable summary. */
@@ -290,7 +358,7 @@ export interface components {
             /** @description The full interval set for the date; an empty list closes the day. */
             intervals: components["schemas"]["Interval"][];
         };
-        /** @description One rung of the slot ladder: a candidate meeting of the requested duration. */
+        /** @description One rung of the slot ladder: a candidate meeting of the event type's duration. */
         Slot: {
             /**
              * Format: date-time
@@ -299,7 +367,7 @@ export interface components {
             start: string;
             /**
              * Format: date-time
-             * @description End of the slot, UTC ISO 8601 (`start` + the requested duration).
+             * @description End of the slot, UTC ISO 8601 (`start` + the event type's duration).
              */
             end: string;
             /** @description Whether it is still bookable. */
@@ -413,12 +481,102 @@ export interface operations {
             };
         };
     };
+    listEventTypes: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                ownerEmail: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The request has succeeded. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EventType"][];
+                };
+            };
+        };
+    };
+    createEventType: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                ownerEmail: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateEventTypeBody"];
+            };
+        };
+        responses: {
+            /** @description 201 — the created event type. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EventType"];
+                };
+            };
+            /** @description 422 — the request failed validation. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ValidationError"];
+                };
+            };
+        };
+    };
+    getEventType: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                ownerEmail: string;
+                eventTypeId: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The request has succeeded. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EventType"];
+                };
+            };
+            /** @description 404 — the referenced resource does not exist. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotFoundError"];
+                };
+            };
+        };
+    };
     createBooking: {
         parameters: {
             query?: never;
             header?: never;
             path: {
                 ownerEmail: string;
+                eventTypeId: number;
             };
             cookie?: never;
         };
@@ -466,6 +624,38 @@ export interface operations {
             };
         };
     };
+    listSlots: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                ownerEmail: string;
+                eventTypeId: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The request has succeeded. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Slot"][];
+                };
+            };
+            /** @description 404 — the referenced resource does not exist. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotFoundError"];
+                };
+            };
+        };
+    };
     listMeetings: {
         parameters: {
             query?: never;
@@ -484,31 +674,6 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Meeting"][];
-                };
-            };
-        };
-    };
-    listSlots: {
-        parameters: {
-            query: {
-                /** @description Meeting length in minutes. */
-                duration: components["schemas"]["MeetingDuration"];
-            };
-            header?: never;
-            path: {
-                ownerEmail: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description The request has succeeded. */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Slot"][];
                 };
             };
         };

@@ -13,6 +13,17 @@ export type LoginText = {
 
 export type OwnerText = {
   title: string
+  eventTypesTitle: string
+  eventTypesHint: string
+  newEventTypeTitle: string
+  typeNameLabel: string
+  typeNameRequired: string
+  typeDescriptionLabel: string
+  typeDescriptionRequired: string
+  typeDurationLabel: string
+  createEventType: string
+  eventTypesEmpty: string
+  eventTypesLoadError: string
   calendarTitle: string
   calendarHint: string
   dayTitle: string
@@ -40,8 +51,17 @@ export type OwnerText = {
   whenLabel: string
 }
 
+export type GuestCatalogText = {
+  title: string
+  ownerLabel: string
+  hint: string
+  empty: string
+}
+
 export type GuestText = {
   title: string
+  backToCatalog: string
+  eventTypeNotFound: string
   ownerLabel: string
   durationLabel: string
   dayLabel: string
@@ -67,6 +87,7 @@ export type GuestText = {
 export type AppText = {
   login: LoginText
   owner: OwnerText
+  guestCatalog: GuestCatalogText
   guest: GuestText
   notFound: { title: string; toMain: string }
   shared: { minutesSuffix: string }
@@ -84,6 +105,17 @@ export const appCopy: Record<Locale, AppText> = {
     },
     owner: {
       title: 'Ваш календарь',
+      eventTypesTitle: 'Типы встреч',
+      eventTypesHint: 'Гость сначала выбирает тип встречи, затем день и свободное время нужной длительности',
+      newEventTypeTitle: 'Новый тип встречи',
+      typeNameLabel: 'Название',
+      typeNameRequired: 'Введите название',
+      typeDescriptionLabel: 'Описание',
+      typeDescriptionRequired: 'Введите описание',
+      typeDurationLabel: 'Длительность',
+      createEventType: 'Создать тип',
+      eventTypesEmpty: 'Типов встреч пока нет — создайте первый, чтобы гости могли записаться',
+      eventTypesLoadError: 'Не удалось загрузить типы встреч',
       calendarTitle: 'Календарь',
       calendarHint: 'Выберите день, чтобы указать часы приёма — на 14 дней вперёд',
       dayTitle: 'Часы приёма',
@@ -101,7 +133,7 @@ export const appCopy: Record<Locale, AppText> = {
       loadError: 'Не удалось загрузить календарь',
       timezoneLabel: 'Часовой пояс',
       guestLinkTitle: 'Ссылка на ваш календарь',
-      guestLinkHint: 'Отправьте её гостю — он сам выберет длительность и время',
+      guestLinkHint: 'Отправьте её гостю — он выберет тип встречи и удобное время',
       copy: 'Скопировать',
       copied: 'Скопировано',
       meetingsTitle: 'Ближайшие встречи',
@@ -110,8 +142,16 @@ export const appCopy: Record<Locale, AppText> = {
       guestLabel: 'Гость',
       whenLabel: 'Когда',
     },
+    guestCatalog: {
+      title: 'Выберите тип встречи',
+      ownerLabel: 'Встреча с',
+      hint: 'После выбора типа откроется календарь со свободным временем',
+      empty: 'Владелец пока не создал ни одного типа встречи',
+    },
     guest: {
       title: 'Запись на встречу',
+      backToCatalog: '← Все типы встреч',
+      eventTypeNotFound: 'Такого типа встречи нет',
       ownerLabel: 'Встреча с',
       durationLabel: 'Длительность',
       dayLabel: 'Выберите день',
@@ -154,6 +194,17 @@ export const appCopy: Record<Locale, AppText> = {
     },
     owner: {
       title: 'Your calendar',
+      eventTypesTitle: 'Event types',
+      eventTypesHint: 'A guest first picks an event type, then a day and a free slot of its length',
+      newEventTypeTitle: 'New event type',
+      typeNameLabel: 'Name',
+      typeNameRequired: 'Enter a name',
+      typeDescriptionLabel: 'Description',
+      typeDescriptionRequired: 'Enter a description',
+      typeDurationLabel: 'Length',
+      createEventType: 'Create type',
+      eventTypesEmpty: 'No event types yet — create one so guests can book',
+      eventTypesLoadError: 'Failed to load event types',
       calendarTitle: 'Calendar',
       calendarHint: 'Pick a day to declare your hours — up to 14 days ahead',
       dayTitle: 'Hours',
@@ -171,7 +222,7 @@ export const appCopy: Record<Locale, AppText> = {
       loadError: 'Failed to load the calendar',
       timezoneLabel: 'Time zone',
       guestLinkTitle: 'Link to your calendar',
-      guestLinkHint: 'Send it to a guest — they pick the length and the time',
+      guestLinkHint: 'Send it to a guest — they pick an event type and a time',
       copy: 'Copy',
       copied: 'Copied',
       meetingsTitle: 'Upcoming meetings',
@@ -180,8 +231,16 @@ export const appCopy: Record<Locale, AppText> = {
       guestLabel: 'Guest',
       whenLabel: 'When',
     },
+    guestCatalog: {
+      title: 'Choose an event type',
+      ownerLabel: 'Meeting with',
+      hint: 'Picking a type opens the calendar with free time',
+      empty: 'This owner has not created any event types yet',
+    },
     guest: {
       title: 'Book a meeting',
+      backToCatalog: '← All event types',
+      eventTypeNotFound: 'No such event type',
       ownerLabel: 'Meeting with',
       durationLabel: 'Length',
       dayLabel: 'Choose a day',

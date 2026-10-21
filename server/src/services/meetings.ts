@@ -6,6 +6,8 @@ type Meeting = components["schemas"]["Meeting"];
 
 type MeetingRow = {
   id: number;
+  event_type_id: number;
+  event_type_name: string;
   owner_email: string;
   start: string;
   end: string;
@@ -17,6 +19,8 @@ type MeetingRow = {
 function toMeeting(row: MeetingRow): Meeting {
   return {
     id: row.id,
+    eventTypeId: row.event_type_id,
+    eventTypeName: row.event_type_name,
     ownerEmail: row.owner_email,
     start: row.start,
     end: row.end,
@@ -26,13 +30,15 @@ function toMeeting(row: MeetingRow): Meeting {
   };
 }
 
-/** GET /api/owners/:ownerEmail/meetings — брони владельца, ещё не завершившиеся, по возрастанию start. */
+/** GET /api/owners/:ownerEmail/meetings — брони владельца (с названием типа встречи), ещё не завершившиеся, по возрастанию start. */
 export function createListMeetingsHandler(db: DatabaseSync, clock: () => Date) {
   const selectUpcoming = db.prepare(
-    `SELECT id, owner_email, start, end, duration_minutes, guest_name, guest_email
-     FROM bookings
-     WHERE owner_email = ? AND end >= ?
-     ORDER BY start ASC`,
+    `SELECT b.id, b.event_type_id, t.name AS event_type_name, b.owner_email,
+            b.start, b.end, b.duration_minutes, b.guest_name, b.guest_email
+     FROM bookings b
+     JOIN event_types t ON t.id = b.event_type_id
+     WHERE b.owner_email = ? AND b.end >= ?
+     ORDER BY b.start ASC`,
   );
 
   return async (
