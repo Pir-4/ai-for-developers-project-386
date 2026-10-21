@@ -11,11 +11,17 @@ const port = 8123;
 const external = process.env.E2E_BASE_URL;
 const baseURL = external ?? `http://localhost:${port}`;
 
+// One throwaway database per run. Pinned in the environment so the worker
+// processes (which re-evaluate this config) and e2e/global-teardown.ts, which
+// deletes it afterwards, all agree on the path.
+process.env.E2E_DB_PATH ??= join(tmpdir(), `call-booking-e2e-${process.pid}.db`);
+
 export default defineConfig({
   testDir: "e2e",
   fullyParallel: false,
   workers: 1,
   forbidOnly: !!process.env.CI,
+  globalTeardown: "./e2e/global-teardown.ts",
   reporter: process.env.CI ? [["list"], ["html", { open: "never" }]] : "list",
   use: {
     baseURL,
@@ -32,7 +38,7 @@ export default defineConfig({
         reuseExistingServer: false,
         env: {
           PORT: String(port),
-          DB_PATH: join(tmpdir(), `call-booking-e2e-${Date.now()}.db`),
+          DB_PATH: process.env.E2E_DB_PATH,
         },
       },
 });
