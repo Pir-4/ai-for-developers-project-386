@@ -107,6 +107,16 @@ describe("POST /api/owners/:ownerEmail/event-types", () => {
       path: "description",
     },
     {
+      what: "название из одних пробелов",
+      payload: { ...validBody, name: "   " },
+      path: "name",
+    },
+    {
+      what: "описание из одних пробелов",
+      payload: { ...validBody, description: " \t " },
+      path: "description",
+    },
+    {
       what: "нет поля durationMinutes",
       payload: { name: validBody.name, description: validBody.description },
       path: "",
@@ -132,6 +142,20 @@ describe("POST /api/owners/:ownerEmail/event-types", () => {
     const list = await app.inject({ method: "GET", url: eventTypesUrl });
     expect(list.json()).toEqual([]);
 
+    await app.close();
+  });
+});
+
+describe("обрезка пробелов при создании типа", () => {
+  it("хранит название и описание без пробелов по краям", async () => {
+    const app = await buildApp({ dbPath: ":memory:" });
+    const res = await app.inject({
+      method: "POST",
+      url: eventTypesUrl,
+      payload: { ...validBody, name: "  Знакомство ", description: " Первый созвон  " },
+    });
+    expect(res.statusCode).toBe(201);
+    expect(res.json()).toMatchObject({ name: "Знакомство", description: "Первый созвон" });
     await app.close();
   });
 });

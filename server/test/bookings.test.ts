@@ -164,6 +164,27 @@ describe("бронирование слота", () => {
     await app.close();
   });
 
+  it("хранит и отдаёт начало в каноническом UTC, даже если оно пришло со смещением", async () => {
+    const app = await build();
+    await openMorning(app);
+
+    // 14:00+03:00 — это ступенька 11:00Z.
+    const response = await app.inject({
+      method: "POST",
+      url: await bookingsUrl(app, 30),
+      payload: { ...guest, start: `${day}T14:00:00+03:00` },
+    });
+    expect(response.statusCode).toBe(201);
+    expect(response.json()).toMatchObject({ start: iso("11:00"), end: iso("11:30") });
+
+    const meetings = (
+      await app.inject({ method: "GET", url: `/api/owners/${enc}/meetings` })
+    ).json();
+    expect(meetings[0].start).toBe(iso("11:00"));
+
+    await app.close();
+  });
+
   it("404 на неизвестный или чужой тип встречи", async () => {
     const app = await build();
     await openMorning(app);

@@ -50,20 +50,21 @@ export function createCreateBookingHandler(db: DatabaseSync, clock: () => Date) 
       };
     }
 
-    const eventType = loadEventType(ownerEmail, eventTypeId);
-    if (!eventType) {
-      reply.code(404);
-      return { message: "event type not found" };
-    }
-    const { durationMinutes } = eventType;
-
     const now = clock();
     const startMs = Date.parse(start);
 
     db.exec("BEGIN IMMEDIATE");
     try {
-      // Лестница пересчитывается здесь же, под той же транзакцией: гость может
-      // бронировать только то, что ему реально предлагалось.
+      // Тип встречи и лестница читаются здесь же, под той же транзакцией: гость
+      // может бронировать только то, что ему реально предлагалось.
+      const eventType = loadEventType(ownerEmail, eventTypeId);
+      if (!eventType) {
+        db.exec("ROLLBACK");
+        reply.code(404);
+        return { message: "event type not found" };
+      }
+      const { durationMinutes } = eventType;
+
       const { hasAvailability, cells } = loadLadder(
         ownerEmail,
         durationMinutes,
@@ -87,12 +88,15 @@ export function createCreateBookingHandler(db: DatabaseSync, clock: () => Date) 
         return { message: "slot is already booked" };
       }
 
+      // Обе границы — каноническим UTC ISO самой ячейки, а не сырой строкой
+      // запроса: "…T11:00:00+03:00" хранится как "…T08:00:00.000Z".
+      const bookedStart = new Date(cell.start).toISOString();
       const end = new Date(cell.end).toISOString();
       const createdAt = now.toISOString();
       const { lastInsertRowid } = insert.run(
         eventTypeId,
         ownerEmail,
-        start,
+        bookedStart,
         end,
         durationMinutes,
         guestName,
@@ -106,7 +110,7 @@ export function createCreateBookingHandler(db: DatabaseSync, clock: () => Date) 
         id: Number(lastInsertRowid),
         eventTypeId,
         ownerEmail,
-        start,
+        start: bookedStart,
         end,
         durationMinutes,
         guestName,

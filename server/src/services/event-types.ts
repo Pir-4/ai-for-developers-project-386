@@ -5,6 +5,7 @@ import type { components } from "../generated/schema.js";
 type EventType = components["schemas"]["EventType"];
 type CreateEventTypeBody = components["schemas"]["CreateEventTypeBody"];
 type NotFoundError = components["schemas"]["NotFoundError"];
+type ValidationError = components["schemas"]["ValidationError"];
 
 // snake_case колонки таблицы → camelCase модель контракта.
 type EventTypeRow = {
@@ -52,9 +53,24 @@ export function createCreateEventTypeHandler(db: DatabaseSync) {
       Body: CreateEventTypeBody;
     }>,
     reply: FastifyReply,
-  ): Promise<EventType> => {
+  ): Promise<EventType | ValidationError> => {
     const { ownerEmail } = request.params;
-    const { name, description, durationMinutes } = request.body;
+    const { durationMinutes } = request.body;
+    // Контракт проверяет длину сырой строки, но Ajv не умеет сначала обрезать
+    // пробелы: "   " прошло бы minLength(1). Поэтому границы — ещё раз здесь, после trim.
+    const name = request.body.name.trim();
+    const description = request.body.description.trim();
+    const errors: ValidationError["errors"] = [];
+    if (name.length < 1) {
+      errors.push({ path: "name", message: "must not be empty after trimming" });
+    }
+    if (description.length < 1) {
+      errors.push({ path: "description", message: "must not be empty after trimming" });
+    }
+    if (errors.length > 0) {
+      reply.code(422);
+      return { message: "invalid event type", errors };
+    }
     const { lastInsertRowid } = insert.run(ownerEmail, name, description, durationMinutes);
 
     reply.code(201);
