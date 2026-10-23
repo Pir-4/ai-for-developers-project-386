@@ -35,3 +35,12 @@ instead of adding more of it.
   server still validates `start < end` on the instants it receives, and rejects overlapping
   intervals for the same date — the one piece of server-side validation this decision does not
   remove.
+
+## Addendum (2026-10-23): strict 14-day window on the 30-minute grid
+
+Interval bounds now lie on the 30-minute grid, and the booking window is exactly 14 days counting
+today. The server still stores no zone, so it anchors the window to UTC dates: a date key is
+accepted only for today … today + 13 (UTC), and no slot starting on or after the start of
+today + 14 (UTC) is offered. The browsers enable the same 14 local days. Near midnight, an owner
+far from UTC may find their local edge day rejected. We accept that edge rather than store a zone
+(`docs/specs/single-owner.md`).

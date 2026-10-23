@@ -3,7 +3,7 @@
 ## Project
 
 "Call booking" — a Hexlet learning project (ai-for-developers program): a simplified Cal.com.
-The owner creates event types (name, description, duration) and declares availability on their calendar; a guest picks an event type, then a date and a free slot of that type's length, and books it; the owner views the list of upcoming meetings.
+A single predefined owner creates event types (name, description; every meeting is 30 minutes) and declares availability on their calendar; a guest picks an event type, then a date and a free 30-minute slot, and books it; the owner views the list of upcoming meetings.
 
 Deliberately **out of scope** (do not add): authentication, personal accounts, external calendar integrations.
 Behavior reference — video in README: https://files.hexlet.app/a/2ipc5m
@@ -26,7 +26,7 @@ Behavior reference — video in README: https://files.hexlet.app/a/2ipc5m
   (`server/src/generated/openapi.json`), `openapi-typescript` types for the server (`server/src/generated/schema.d.ts`)
   and the web client SDK (`web/src/generated/api/`, `@hey-api/openapi-ts`, config `contract/openapi-ts.config.ts`).
   The SDK generator requires Node ≥ 22.18 — run `make generate` with Node 22 from nvm (see Commands).
-- `server/` — Fastify 5. `src/app.ts` — `buildApp({ dbPath, clock })` (`clock` defaults to system time;
+- `server/` — Fastify 5. `src/app.ts` — `buildApp({ dbPath, clock, owner })` (`clock` defaults to system time;
   tests inject a fixed one): `fastify-openapi-glue` registers routes and request
   validation from `src/generated/openapi.json` under the `/api` prefix (validation failures → 422 in the contract's
   `ValidationError` shape); `src/db/` — `node:sqlite` + an ordered-SQL migration runner (`PRAGMA user_version`,
@@ -35,15 +35,18 @@ Behavior reference — video in README: https://files.hexlet.app/a/2ipc5m
   `src/services/index.ts`, typed with the generated types. `src/index.ts` — startup on `PORT ?? 8000`, database
   file `DB_PATH` (defaults to `data/app.db`).
   Tests — Vitest via `app.inject()` with `dbPath: ":memory:"`, located in `server/test/`.
-- `web/` — Vite 6 + React 19 + Mantine 9 + react-router (client routes `/`, `/login`, `/owner/:email`,
-  `/book/:email` — the owner's event-type catalog, `/book/:email/:eventTypeId` — date and slot for that type;
+- `web/` — Vite 6 + React 19 + Mantine 9 + react-router (client routes `/` — guest-first landing, `/owner` — the
+  single owner's area (no login), `/book` — the owner's event-type catalog, `/book/:eventTypeId` — date and slot for that type;
   pages in `src/pages/`, copy in `src/content/`). `src/api.ts` wraps the generated SDK and maps error responses to
   typed errors — no hand-written `fetch`. Web tests stub the global `fetch` via `web/test/fetch-stub.ts`.
   Dev proxy `/api` → :8000 (`vite.config.ts`).
 - Production: a single process (`npm start`) serves both the API (`/api/*`) and static files from `web/dist` — there is no separate frontend server. Client routes get the SPA fallback (`index.html`); unknown `/api/*` stays JSON 404.
-- Time — UTC ISO 8601 strings only; interval bounds lie on the 15-minute grid, and a slot's length is its
-  event type's duration (a multiple of 15, 15–240 minutes). A booking blocks overlapping slots of every event type
-  of the same owner. The owner's browser converts the local wall time it displays to UTC; the server
+- Owner — exactly one, predefined in the server config (`OWNER_NAME` / `OWNER_EMAIL`, demo defaults in
+  `server/src/owner.ts`; `buildApp({ owner })` in tests), served by `GET /api/owner`. No `ownerEmail` anywhere in
+  the API or the database.
+- Time — UTC ISO 8601 strings only; interval bounds lie on the 30-minute grid, and every slot (and every event
+  type) is 30 minutes, starting on `:00`/`:30`. The booking window is exactly 14 days counting today
+  (UTC dates today … today + 13). A booking blocks overlapping slots of every event type. The owner's browser converts the local wall time it displays to UTC; the server
   stores and returns UTC instants verbatim, performing no timezone expansion and storing no IANA zone
   (see `docs/research/local-time-to-utc.md`).
 - DB — SQLite via `node:sqlite`, file `data/app.db` (default path is resolved from the repo root, so cwd does not matter). Requires local Node ≥ 22.13 (unflagged `node:sqlite`; the process prints an ExperimentalWarning on Node 22 — expected). `data/` is in .gitignore.

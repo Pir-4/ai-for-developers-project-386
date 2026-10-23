@@ -2,6 +2,9 @@
 
 - **Stage**: review fixes — restore the mandatory event-type model (Hexlet review, 2026-10).
 - **Branch / PR**: `feat/event-types`.
+- **Superseded in part** by `single-owner.md`: there is one predefined owner (no `ownerEmail` in
+  routes or models), every event type lasts 30 minutes (no duration in the creation form), slots
+  start every 30 minutes, and guest routes are `/book` and `/book/:eventTypeId`.
 
 ## 1. Goal
 
