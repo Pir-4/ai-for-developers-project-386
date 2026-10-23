@@ -1,11 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { buildApp } from "../src/app.js";
-import { eventTypeId, eventTypeUrls } from "./event-type-urls.js";
+import { bookingsUrl, slotsUrl, slotsUrlOf } from "./event-type-urls.js";
 
-const owner = "owner@example.com";
-const enc = encodeURIComponent(owner);
-const availabilityUrl = (date: string) => `/api/owners/${enc}/availability/${date}`;
-const { slotsUrl, bookingsUrl } = eventTypeUrls(owner);
+const availabilityUrl = (date: string) => `/api/availability/${date}`;
 
 const now = new Date("2024-01-10T09:47:00.000Z");
 const day = "2024-01-11";
@@ -27,7 +24,7 @@ const times = (slots: { start: string }[]) =>
 describe("лестница слотов для гостя", () => {
   it("пустая, пока владелец не открыл ни одного дня", async () => {
     const app = await build();
-    const response = await app.inject({ method: "GET", url: await slotsUrl(app, 30) });
+    const response = await app.inject({ method: "GET", url: await slotsUrl(app) });
     expect(response.statusCode).toBe(200);
     expect(response.json()).toEqual([]);
     await app.close();
@@ -40,7 +37,7 @@ describe("лестница слотов для гостя", () => {
       { start: "2024-01-12T09:00:00.000Z", end: "2024-01-12T10:00:00.000Z" },
     ], "2024-01-12");
 
-    const slots = (await app.inject({ method: "GET", url: await slotsUrl(app, 30) })).json();
+    const slots = (await app.inject({ method: "GET", url: await slotsUrl(app) })).json();
     expect(slots.map((slot: { start: string }) => slot.start)).toEqual([
       iso("11:00"),
       iso("11:30"),
@@ -50,27 +47,32 @@ describe("лестница слотов для гостя", () => {
     await app.close();
   });
 
-  it("каждая ячейка несёт конец и статус", async () => {
+  it("каждый слот — 30 минут, начинается на :00 или :30 и несёт статус", async () => {
     const app = await build();
-    await openDay(app, [{ start: iso("11:00"), end: iso("11:45") }]);
+    await openDay(app, [{ start: iso("10:00"), end: iso("12:00") }]);
 
-    const slots = (await app.inject({ method: "GET", url: await slotsUrl(app, 45) })).json();
+    const slots = (await app.inject({ method: "GET", url: await slotsUrl(app) })).json();
     expect(slots).toEqual([
-      { start: iso("11:00"), end: iso("11:45"), status: "free" },
+      { start: iso("10:00"), end: iso("10:30"), status: "free" },
+      { start: iso("10:30"), end: iso("11:00"), status: "free" },
+      { start: iso("11:00"), end: iso("11:30"), status: "free" },
+      { start: iso("11:30"), end: iso("12:00"), status: "free" },
     ]);
     await app.close();
   });
 
-  it("длительность типа встречи задаёт лестницу", async () => {
+  it("никогда не отдаёт слоты дальше сегодня + 13", async () => {
     const app = await build();
-    await openDay(app, [{ start: iso("11:00"), end: iso("15:00") }]);
+    // Последний день окна — 2024-01-23; интервал заходит за полночь в 2024-01-24.
+    await openDay(app, [
+      { start: "2024-01-23T23:00:00.000Z", end: "2024-01-24T01:00:00.000Z" },
+    ], "2024-01-23");
 
-    const counts = await Promise.all(
-      [15, 30, 45].map(async (duration) =>
-        (await app.inject({ method: "GET", url: await slotsUrl(app, duration) })).json().length,
-      ),
-    );
-    expect(counts).toEqual([16, 8, 5]);
+    const slots = (await app.inject({ method: "GET", url: await slotsUrl(app) })).json();
+    expect(slots.map((slot: { start: string }) => slot.start)).toEqual([
+      "2024-01-23T23:00:00.000Z",
+      "2024-01-23T23:30:00.000Z",
+    ]);
     await app.close();
   });
 
@@ -79,7 +81,7 @@ describe("лестница слотов для гостя", () => {
     await openDay(app, [{ start: iso("11:00"), end: iso("12:00") }]);
     await app.inject({
       method: "POST",
-      url: await bookingsUrl(app, 30),
+      url: await bookingsUrl(app),
       payload: {
         guestName: "Гость",
         guestEmail: "guest@example.com",
@@ -87,7 +89,7 @@ describe("лестница слотов для гостя", () => {
       },
     });
 
-    const slots = (await app.inject({ method: "GET", url: await slotsUrl(app, 30) })).json();
+    const slots = (await app.inject({ method: "GET", url: await slotsUrl(app) })).json();
     expect(slots).toEqual([
       { start: iso("11:00"), end: iso("11:30"), status: "free" },
       { start: iso("11:30"), end: iso("12:00"), status: "busy" },
@@ -100,7 +102,7 @@ describe("лестница слотов для гостя", () => {
     await openDay(app, [{ start: iso("11:00"), end: iso("11:30") }]);
     await app.inject({
       method: "POST",
-      url: await bookingsUrl(app, 30),
+      url: await bookingsUrl(app),
       payload: {
         guestName: "Секретный Гость",
         guestEmail: "secret@example.com",
@@ -108,7 +110,7 @@ describe("лестница слотов для гостя", () => {
       },
     });
 
-    const body = (await app.inject({ method: "GET", url: await slotsUrl(app, 30) })).body;
+    const body = (await app.inject({ method: "GET", url: await slotsUrl(app) })).body;
     expect(body).not.toContain("Секретный");
     expect(body).not.toContain("secret@example.com");
     await app.close();
@@ -124,52 +126,20 @@ describe("лестница слотов для гостя", () => {
       url: availabilityUrl("2024-01-10"),
       payload: {
         intervals: [
-          { start: "2024-01-10T11:00:00.000Z", end: "2024-01-10T15:00:00.000Z" },
+          { start: "2024-01-10T13:00:00.000Z", end: "2024-01-10T15:00:00.000Z" },
         ],
       },
     });
 
-    const slots = (await app.inject({ method: "GET", url: await slotsUrl(app, 45) })).json();
-    expect(times(slots)).toEqual(["14:00"]);
+    const slots = (await app.inject({ method: "GET", url: await slotsUrl(app) })).json();
+    expect(times(slots)).toEqual(["13:30", "14:00", "14:30"]);
     await app.close();
   });
 
-  it("404 на неизвестный или чужой тип встречи", async () => {
+  it("404 на неизвестный тип встречи", async () => {
     const app = await build();
-    const foreignId = await eventTypeId(app, "other@example.com", 30);
-    for (const id of [999, foreignId]) {
-      const response = await app.inject({
-        method: "GET",
-        url: `/api/owners/${enc}/event-types/${id}/slots`,
-      });
-      expect(response.statusCode).toBe(404);
-    }
-    await app.close();
-  });
-
-  it("брони другого владельца не занимают слоты этого", async () => {
-    const app = await build();
-    await openDay(app, [{ start: iso("11:00"), end: iso("11:30") }]);
-
-    const other = encodeURIComponent("other@example.com");
-    await app.inject({
-      method: "PUT",
-      url: `/api/owners/${other}/availability/${day}`,
-      payload: { intervals: [{ start: iso("11:00"), end: iso("11:30") }] },
-    });
-    await app.inject({
-      method: "POST",
-      url: `/api/owners/${other}/bookings`,
-      payload: {
-        guestName: "Гость",
-        guestEmail: "guest@example.com",
-        start: iso("11:00"),
-        durationMinutes: 30,
-      },
-    });
-
-    const slots = (await app.inject({ method: "GET", url: await slotsUrl(app, 30) })).json();
-    expect(slots[0].status).toBe("free");
+    const response = await app.inject({ method: "GET", url: slotsUrlOf(999) });
+    expect(response.statusCode).toBe(404);
     await app.close();
   });
 });

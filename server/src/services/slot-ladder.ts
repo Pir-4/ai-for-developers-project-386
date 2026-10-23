@@ -5,13 +5,16 @@
 // own inputs. Everything is epoch milliseconds, so the arithmetic can be tested
 // without standing up a server (see server/test/slot-ladder.test.ts).
 
-/** The booking window, in days from today. */
+/** The booking window: today and the next 13 days, 14 days in all. */
 export const WINDOW_DAYS = 14;
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
-/** The 15-minute grid every availability bound must land on. */
-export const GRID_STEP_MS = 15 * 60 * 1000;
+/** The 30-minute grid every availability bound and every slot start lands on. */
+export const GRID_STEP_MS = 30 * 60 * 1000;
+
+/** The length of every slot and every booking, in minutes. */
+export const SLOT_MINUTES = 30;
 
 export interface Span {
   /** Inclusive start, epoch ms. */
@@ -46,12 +49,13 @@ export function hasSelfOverlap(spans: Span[]): boolean {
 }
 
 /**
- * Lay cells of `durationMinutes` end to end from the start of each interval.
+ * Cells of `durationMinutes`, one starting at every grid step from the start of
+ * each interval (10:00–12:00 at 30 minutes gives 10:00, 10:30, 11:00, 11:30).
  *
- * A trailing remainder that does not fit is dropped (11:00–15:00 at 45 minutes
- * ends at 14:45, discarding the last quarter hour), cells never span two
- * intervals, and cells that have already started are omitted entirely — they
- * are not returned as busy or disabled, they simply are not offered.
+ * A cell must end inside its interval, so cells never span two intervals.
+ * Cells that have already started, or that start at or after `until` (the end
+ * of the booking window), are omitted entirely — they are not returned as busy
+ * or disabled, they simply are not offered.
  *
  * Cells come back ordered by start, whatever order the intervals arrived in.
  */
@@ -59,9 +63,10 @@ export function buildLadder(options: {
   intervals: Span[];
   durationMinutes: number;
   now: number;
+  until: number;
   bookings: Span[];
 }): Cell[] {
-  const { intervals, durationMinutes, now, bookings } = options;
+  const { intervals, durationMinutes, now, until, bookings } = options;
   const durationMs = durationMinutes * 60 * 1000;
   if (durationMs <= 0) return [];
 
@@ -69,8 +74,8 @@ export function buildLadder(options: {
   for (const interval of intervals) {
     for (
       let start = interval.start;
-      start + durationMs <= interval.end;
-      start += durationMs
+      start + durationMs <= interval.end && start < until;
+      start += GRID_STEP_MS
     ) {
       if (start < now) continue;
       const cell = { start, end: start + durationMs };
@@ -88,18 +93,24 @@ export function utcDateKey(ms: number): string {
   return new Date(ms).toISOString().slice(0, 10);
 }
 
+/** Start of the UTC day `now` falls on, epoch ms. */
+function utcDayStart(now: number): number {
+  return Date.parse(`${utcDateKey(now)}T00:00:00.000Z`);
+}
+
+/** The first instant past the booking window: the start of UTC day today + 14. */
+export function windowEnd(now: number): number {
+  return utcDayStart(now) + WINDOW_DAYS * DAY_MS;
+}
+
 /**
- * Whether a date key is close enough to today to belong to the booking window.
- *
- * Padded by a day on each side: the key is the *owner's* local date, and the
- * server does not know their offset, so a strict UTC comparison would reject
- * perfectly good edge days. The padding rejects absurd dates without
- * adjudicating cases the server has no information about.
+ * Whether a date key lies in the booking window: today … today + 13, UTC days,
+ * exactly 14 days counting today.
  */
 export function dateKeyInWindow(dateKey: string, now: number): boolean {
-  const todayMs = Date.parse(`${utcDateKey(now)}T00:00:00.000Z`);
+  const todayMs = utcDayStart(now);
   return (
-    dateKey >= utcDateKey(todayMs - DAY_MS) &&
-    dateKey <= utcDateKey(todayMs + (WINDOW_DAYS + 1) * DAY_MS)
+    dateKey >= utcDateKey(todayMs) &&
+    dateKey <= utcDateKey(todayMs + (WINDOW_DAYS - 1) * DAY_MS)
   );
 }

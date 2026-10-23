@@ -1,7 +1,7 @@
 import { Box, Button, Container, Stack, Text, Title } from '@mantine/core'
 import { Link } from 'react-router'
 import { useLanding } from '../i18n.tsx'
-import { createMeetingHref } from '../links.ts'
+import { guestHref } from '../links.ts'
 
 export function CtaSection() {
   const t = useLanding()
@@ -15,8 +15,8 @@ export function CtaSection() {
           <Text c="dimmed" ta="center">
             {t.cta.body}
           </Text>
-          <Button component={Link} to={createMeetingHref} size="lg">
-            {t.createMeeting}
+          <Button component={Link} to={guestHref} size="lg">
+            {t.bookCall}
           </Button>
         </Stack>
       </Container>

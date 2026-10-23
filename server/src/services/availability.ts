@@ -26,29 +26,29 @@ function toSpan(interval: { start: string; end: string }): Span {
   return { start: Date.parse(interval.start), end: Date.parse(interval.end) };
 }
 
-/** PUT /api/owners/:ownerEmail/availability/:date — заменяет доступность дня целиком. */
+/** PUT /api/availability/:date — заменяет доступность дня целиком. */
 export function createSetAvailabilityHandler(db: DatabaseSync, clock: () => Date) {
   const selectDay = db.prepare(
-    "SELECT date, start, end FROM availability WHERE owner_email = ? AND date = ? ORDER BY start",
+    "SELECT date, start, end FROM availability WHERE date = ? ORDER BY start",
   );
   const selectBookings = db.prepare(
-    "SELECT start, end, guest_name FROM bookings WHERE owner_email = ?",
+    "SELECT start, end, guest_name FROM bookings",
   );
   const deleteDay = db.prepare(
-    "DELETE FROM availability WHERE owner_email = ? AND date = ?",
+    "DELETE FROM availability WHERE date = ?",
   );
   const insert = db.prepare(
-    "INSERT INTO availability (owner_email, date, start, end) VALUES (?, ?, ?, ?)",
+    "INSERT INTO availability (date, start, end) VALUES (?, ?, ?)",
   );
 
   return async (
     request: FastifyRequest<{
-      Params: { ownerEmail: string; date: string };
+      Params: { date: string };
       Body: SetAvailabilityBody;
     }>,
     reply: FastifyReply,
   ): Promise<DayAvailability | ValidationError | AvailabilityConflictError> => {
-    const { ownerEmail, date } = request.params;
+    const { date } = request.params;
     const now = clock().getTime();
 
     if (!dateKeyInWindow(date, now)) {
@@ -65,7 +65,7 @@ export function createSetAvailabilityHandler(db: DatabaseSync, clock: () => Date
       }
       if (span.start % GRID_STEP_MS !== 0 || span.end % GRID_STEP_MS !== 0) {
         reply.code(422);
-        return invalid(`intervals/${index}`, "must lie on the 15-minute grid");
+        return invalid(`intervals/${index}`, "must lie on the 30-minute grid");
       }
     }
     const spans = intervals.map(toSpan);
@@ -79,8 +79,8 @@ export function createSetAvailabilityHandler(db: DatabaseSync, clock: () => Date
       // Какие брони «держит» этот день — те, что лежали внутри его прежних
       // интервалов. Ключ даты для сервера непрозрачен, поэтому принадлежность
       // брони дню определяется пересечением, а не разбором даты.
-      const previous = (selectDay.all(ownerEmail, date) as IntervalRow[]).map(toSpan);
-      const held = (selectBookings.all(ownerEmail) as BookingRow[]).filter((booking) =>
+      const previous = (selectDay.all(date) as IntervalRow[]).map(toSpan);
+      const held = (selectBookings.all() as BookingRow[]).filter((booking) =>
         previous.some((span) => overlaps(toSpan(booking), span)),
       );
       const uncovered = held.filter((booking) => !isCovered(toSpan(booking), spans));
@@ -97,9 +97,9 @@ export function createSetAvailabilityHandler(db: DatabaseSync, clock: () => Date
         };
       }
 
-      deleteDay.run(ownerEmail, date);
+      deleteDay.run(date);
       for (const interval of intervals) {
-        insert.run(ownerEmail, date, interval.start, interval.end);
+        insert.run(date, interval.start, interval.end);
       }
       db.exec("COMMIT");
     } catch (err) {
@@ -114,17 +114,15 @@ export function createSetAvailabilityHandler(db: DatabaseSync, clock: () => Date
   };
 }
 
-/** GET /api/owners/:ownerEmail/availability — доступность за окно бронирования. */
+/** GET /api/availability — доступность за окно бронирования. */
 export function createListAvailabilityHandler(db: DatabaseSync, clock: () => Date) {
   const selectAll = db.prepare(
-    "SELECT date, start, end FROM availability WHERE owner_email = ? ORDER BY date, start",
+    "SELECT date, start, end FROM availability ORDER BY date, start",
   );
 
-  return async (
-    request: FastifyRequest<{ Params: { ownerEmail: string } }>,
-  ): Promise<DayAvailability[]> => {
+  return async (): Promise<DayAvailability[]> => {
     const now = clock().getTime();
-    const rows = (selectAll.all(request.params.ownerEmail) as IntervalRow[]).filter(
+    const rows = (selectAll.all() as IntervalRow[]).filter(
       (row) => dateKeyInWindow(row.date, now),
     );
 

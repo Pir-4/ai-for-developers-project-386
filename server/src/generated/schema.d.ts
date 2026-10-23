@@ -8,24 +8,7 @@
  */
 
 export interface paths {
-    "/health": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** @description Liveness probe. */
-        get: operations["health"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/owners/{ownerEmail}/availability": {
+    "/availability": {
         parameters: {
             query?: never;
             header?: never;
@@ -42,7 +25,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/owners/{ownerEmail}/availability/{date}": {
+    "/availability/{date}": {
         parameters: {
             query?: never;
             header?: never;
@@ -59,7 +42,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/owners/{ownerEmail}/event-types": {
+    "/event-types": {
         parameters: {
             query?: never;
             header?: never;
@@ -77,7 +60,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/owners/{ownerEmail}/event-types/{eventTypeId}": {
+    "/event-types/{eventTypeId}": {
         parameters: {
             query?: never;
             header?: never;
@@ -94,7 +77,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/owners/{ownerEmail}/event-types/{eventTypeId}/bookings": {
+    "/event-types/{eventTypeId}/bookings": {
         parameters: {
             query?: never;
             header?: never;
@@ -111,7 +94,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/owners/{ownerEmail}/event-types/{eventTypeId}/slots": {
+    "/event-types/{eventTypeId}/slots": {
         parameters: {
             query?: never;
             header?: never;
@@ -121,12 +104,12 @@ export interface paths {
         /**
          * @description The event type's slot ladder for the whole booking window, ordered by start.
          *
-         *     Cells are laid end to end from the start of each availability interval, each
-         *     exactly the event type's duration long; a trailing remainder that does not fit
-         *     is dropped, and cells never span two intervals. Cells that have already started
-         *     are omitted entirely. A cell is busy when it overlaps any booking of the owner,
-         *     whatever its event type. The response is deliberately flat: the guest's browser
-         *     groups it into the guest's own local dates.
+         *     Cells start every 30 minutes from the start of each availability interval, each
+         *     exactly the event type's duration long (30 minutes) and fully inside its
+         *     interval. Cells that have already started, and cells starting after the last day
+         *     of the booking window (today + 13, UTC), are omitted entirely. A cell is busy
+         *     when it overlaps any booking of the owner, whatever its event type. The response
+         *     is deliberately flat: the guest's browser groups it into the guest's own local dates.
          */
         get: operations["listSlots"];
         put?: never;
@@ -137,7 +120,24 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/owners/{ownerEmail}/meetings": {
+    "/health": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Liveness probe. */
+        get: operations["health"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/meetings": {
         parameters: {
             query?: never;
             header?: never;
@@ -146,6 +146,23 @@ export interface paths {
         };
         /** @description List the owner's upcoming meetings (`end >= now`), ordered by start ascending. */
         get: operations["listMeetings"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/owner": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description The predefined owner whose calendar this app serves. */
+        get: operations["getOwner"];
         put?: never;
         post?: never;
         delete?: never;
@@ -192,8 +209,6 @@ export interface components {
              * @description The event type this booking is for.
              */
             eventTypeId: number;
-            /** @description Email of the owner this booking belongs to. */
-            ownerEmail: string;
             /**
              * Format: date-time
              * @description Start of the booked interval, UTC ISO 8601.
@@ -206,7 +221,7 @@ export interface components {
             end: string;
             /**
              * Format: int32
-             * @description Meeting length in minutes, taken from the event type at booking time.
+             * @description Meeting length in minutes (always 30), taken from the event type at booking time.
              */
             durationMinutes: number;
             /** @description The guest's name. */
@@ -242,39 +257,32 @@ export interface components {
             name: string;
             /** @description What the meeting is about, shown to the guest. */
             description: string;
-            /**
-             * Format: int32
-             * @description Meeting length in minutes: a multiple of 15, from 15 to 240.
-             */
-            durationMinutes: number;
         };
         /** @description The intervals an owner has declared for one date. An empty list closes the day. */
         DayAvailability: {
             /**
              * Format: date
              * @description The owner's local calendar date the intervals were entered against, `YYYY-MM-DD`.
-             *     The server treats it as an opaque grouping key and derives nothing from it.
+             *     Must fall within the booking window: today … today + 13 (UTC), 14 days in all.
              */
             date: string;
             /** @description The declared intervals, ordered by start. */
             intervals: components["schemas"]["Interval"][];
         };
-        /** @description A kind of bookable meeting defined by an owner: name, description and duration. */
+        /** @description A kind of bookable meeting defined by the owner: name and description; always 30 minutes. */
         EventType: {
             /**
              * Format: int32
              * @description Server-assigned identifier.
              */
             id: number;
-            /** @description Email of the owner this event type belongs to. */
-            ownerEmail: string;
             /** @description Short display name shown to the owner and the guest. */
             name: string;
             /** @description What the meeting is about, shown to the guest. */
             description: string;
             /**
              * Format: int32
-             * @description Meeting length in minutes — every slot of this type is exactly this long.
+             * @description Meeting length in minutes — always 30, the length of every slot.
              */
             durationMinutes: number;
         };
@@ -294,7 +302,8 @@ export interface components {
             status: "ok";
         };
         /**
-         * @description One continuous stretch of an owner's availability, as UTC instants.
+         * @description One continuous stretch of an owner's availability, as UTC instants. Both bounds
+         *     lie on the 30-minute grid.
          *
          *     The owner's browser converts the hours it displays into UTC; the server stores
          *     what it receives verbatim and performs no timezone expansion. See
@@ -326,8 +335,6 @@ export interface components {
             eventTypeId: number;
             /** @description Name of the event type, shown in the row. */
             eventTypeName: string;
-            /** @description Email of the owner this meeting belongs to. */
-            ownerEmail: string;
             /**
              * Format: date-time
              * @description Start of the meeting, UTC ISO 8601.
@@ -353,12 +360,19 @@ export interface components {
             /** @description Human-readable summary. */
             message: string;
         };
+        /** @description The calendar owner: a single predefined profile from the server config. */
+        Owner: {
+            /** @description Display name shown to guests. */
+            name: string;
+            /** @description Contact email. */
+            email: string;
+        };
         /** @description Body for replacing one date's availability. */
         SetAvailabilityBody: {
             /** @description The full interval set for the date; an empty list closes the day. */
             intervals: components["schemas"]["Interval"][];
         };
-        /** @description One rung of the slot ladder: a candidate meeting of the event type's duration. */
+        /** @description One rung of the slot ladder: a candidate 30-minute meeting. */
         Slot: {
             /**
              * Format: date-time
@@ -394,33 +408,11 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
-    health: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description The request has succeeded. */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HealthStatus"];
-                };
-            };
-        };
-    };
     listAvailability: {
         parameters: {
             query?: never;
             header?: never;
-            path: {
-                ownerEmail: string;
-            };
+            path?: never;
             cookie?: never;
         };
         requestBody?: never;
@@ -441,7 +433,6 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
-                ownerEmail: string;
                 date: string;
             };
             cookie?: never;
@@ -485,9 +476,7 @@ export interface operations {
         parameters: {
             query?: never;
             header?: never;
-            path: {
-                ownerEmail: string;
-            };
+            path?: never;
             cookie?: never;
         };
         requestBody?: never;
@@ -507,9 +496,7 @@ export interface operations {
         parameters: {
             query?: never;
             header?: never;
-            path: {
-                ownerEmail: string;
-            };
+            path?: never;
             cookie?: never;
         };
         requestBody: {
@@ -543,7 +530,6 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
-                ownerEmail: string;
                 eventTypeId: number;
             };
             cookie?: never;
@@ -575,7 +561,6 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
-                ownerEmail: string;
                 eventTypeId: number;
             };
             cookie?: never;
@@ -629,7 +614,6 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
-                ownerEmail: string;
                 eventTypeId: number;
             };
             cookie?: never;
@@ -656,13 +640,31 @@ export interface operations {
             };
         };
     };
+    health: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The request has succeeded. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HealthStatus"];
+                };
+            };
+        };
+    };
     listMeetings: {
         parameters: {
             query?: never;
             header?: never;
-            path: {
-                ownerEmail: string;
-            };
+            path?: never;
             cookie?: never;
         };
         requestBody?: never;
@@ -674,6 +676,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Meeting"][];
+                };
+            };
+        };
+    };
+    getOwner: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The request has succeeded. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Owner"];
                 };
             };
         };

@@ -5,6 +5,7 @@ import {
   githubHref,
   hexletHref,
   howHref,
+  ownerHref,
 } from '../links.ts'
 
 type FooterLink = {
@@ -21,6 +22,7 @@ export function SiteFooter() {
       links: [
         { label: t.nav.how, href: howHref },
         { label: t.nav.owners, href: audiencesHref },
+        { label: t.ownerArea, href: ownerHref },
       ],
     },
     {

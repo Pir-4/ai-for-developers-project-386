@@ -26,6 +26,7 @@ import {
 } from '../api.ts'
 import { useAppText } from '../i18n.tsx'
 import { guestHref } from '../links.ts'
+import { useOwner } from '../useOwner.ts'
 import {
   formatLocalDateTime,
   formatLocalTime,
@@ -34,7 +35,7 @@ import {
   toDateString,
 } from '../localTime.ts'
 
-// Pragmatic "looks like an email" check — same rule as the login page.
+// Pragmatic "looks like an email" check, not stricter than the server's.
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 const GUEST_NAME_MAX = 100
 const BOOKING_WINDOW_DAYS = 14
@@ -54,19 +55,19 @@ function addDays(date: Date, days: number): Date {
 }
 
 /**
- * One event type's booking page (/book/:email/:eventTypeId): the guest has
- * already picked the type in the catalog, now picks a date and a free slot of
- * the type's length, then leaves a name and an email.
+ * One event type's booking page (/book/:eventTypeId): the guest has already
+ * picked the type in the catalog, now picks a date and a free 30-minute slot,
+ * then leaves a name and an email.
  *
  * The slots API answers flat; the binning into calendar days happens here, in
  * the guest's own timezone, so a cell at the edge of a day lands on the date
  * the guest would call it (see issue #39).
  */
 export function GuestPage() {
-  const { email = '', eventTypeId: eventTypeParam = '' } = useParams()
-  const ownerEmail = decodeURIComponent(email)
+  const { eventTypeId: eventTypeParam = '' } = useParams()
+  const owner = useOwner()
   const eventTypeId = Number(eventTypeParam)
-  // A mangled link (/book/:email/abc) names no event type: don't ask the API,
+  // A mangled link (/book/abc) names no event type: don't ask the API,
   // which would only answer 422 for the malformed path.
   const validEventTypeId = Number.isInteger(eventTypeId) && eventTypeId > 0
   const t = useAppText().guest
@@ -101,7 +102,7 @@ export function GuestPage() {
       return
     }
     setEventTypeState('loading')
-    getEventType(ownerEmail, eventTypeId)
+    getEventType(eventTypeId)
       .then((loaded) => {
         if (cancelled) return
         setEventType(loaded)
@@ -113,7 +114,7 @@ export function GuestPage() {
     return () => {
       cancelled = true
     }
-  }, [ownerEmail, eventTypeId, validEventTypeId])
+  }, [eventTypeId, validEventTypeId])
 
   useEffect(() => {
     let cancelled = false
@@ -121,7 +122,7 @@ export function GuestPage() {
     setSelectedStart(null)
     if (!validEventTypeId) return
     setSlotsState('loading')
-    listSlots(ownerEmail, eventTypeId)
+    listSlots(eventTypeId)
       .then((loaded) => {
         if (cancelled) return
         setSlots(loaded)
@@ -133,7 +134,7 @@ export function GuestPage() {
     return () => {
       cancelled = true
     }
-  }, [ownerEmail, eventTypeId, validEventTypeId])
+  }, [eventTypeId, validEventTypeId])
 
   // The flat ladder, binned into the guest's own calendar days.
   const byDate = useMemo(() => {
@@ -166,7 +167,7 @@ export function GuestPage() {
     setBooking(true)
     try {
       setConfirmed(
-        await createBooking(ownerEmail, eventTypeId, {
+        await createBooking(eventTypeId, {
           guestName: name,
           guestEmail: mail,
           start: selectedStart,
@@ -179,7 +180,7 @@ export function GuestPage() {
         // Refresh the ladder so the taken cell shows as busy. If the refresh
         // fails, keep the ladder already on screen rather than hiding it.
         try {
-          setSlots(await listSlots(ownerEmail, eventTypeId))
+          setSlots(await listSlots(eventTypeId))
           setSlotsState('ready')
         } catch {
           // keep the current slots and state
@@ -201,7 +202,7 @@ export function GuestPage() {
   }
 
   const backToCatalog = (
-    <Anchor component={Link} to={guestHref(ownerEmail)} size="sm">
+    <Anchor component={Link} to={guestHref} size="sm">
       {t.backToCatalog}
     </Anchor>
   )
@@ -257,7 +258,7 @@ export function GuestPage() {
                   <Text c="dimmed" size="sm">
                     {t.ownerLabel}
                   </Text>
-                  <Text fw={700}>{ownerEmail}</Text>
+                  <Text fw={700}>{owner?.name ?? ''}</Text>
                 </Box>
                 {eventType && (
                   <Box>
@@ -288,7 +289,8 @@ export function GuestPage() {
                     setSlotTaken(false)
                   }}
                   minDate={today}
-                  maxDate={addDays(today, BOOKING_WINDOW_DAYS)}
+                  // Today plus 13 days: exactly 14 days counting today.
+                  maxDate={addDays(today, BOOKING_WINDOW_DAYS - 1)}
                   excludeDate={(date) => freeCount(date) === 0}
                   renderDay={(date) => {
                     const free = freeCount(date)

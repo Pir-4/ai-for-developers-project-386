@@ -13,8 +13,7 @@ type → slots), not for visual style — the style is ours, as defined here.
 - Acceptance bar: "clean generic SaaS, nothing broken-looking".
 - One process serves API + static files — pages are client routes served by
   the single server (SPA fallback to `index.html` for non-API paths);
-  routing is react-router (`/`, `/login`, `/owner/:email`, `/book/:email`,
-  `/book/:email/:id`).
+  routing is react-router (`/`, `/owner`, `/book`, `/book/:id`).
 
 ## Page skeleton
 

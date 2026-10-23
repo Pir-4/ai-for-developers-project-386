@@ -3,14 +3,6 @@ import type { Locale } from './landing.ts'
 // Copy of the app pages beyond the landing (canonical structure; the landing
 // keeps its own dictionary in landing.ts). Zero hardcoded UI strings in pages.
 
-export type LoginText = {
-  title: string
-  hint: string
-  emailLabel: string
-  submit: string
-  invalidEmail: string
-}
-
 export type OwnerText = {
   title: string
   eventTypesTitle: string
@@ -85,7 +77,6 @@ export type GuestText = {
 }
 
 export type AppText = {
-  login: LoginText
   owner: OwnerText
   guestCatalog: GuestCatalogText
   guest: GuestText
@@ -96,17 +87,10 @@ export type AppText = {
 
 export const appCopy: Record<Locale, AppText> = {
   ru: {
-    login: {
-      title: 'Вход для владельца',
-      hint: 'Введите email — без пароля и регистрации',
-      emailLabel: 'Email',
-      submit: 'Войти',
-      invalidEmail: 'Введите корректный email',
-    },
     owner: {
       title: 'Ваш календарь',
       eventTypesTitle: 'Типы встреч',
-      eventTypesHint: 'Гость сначала выбирает тип встречи, затем день и свободное время нужной длительности',
+      eventTypesHint: 'Гость сначала выбирает тип встречи, затем день и свободный 30-минутный слот',
       newEventTypeTitle: 'Новый тип встречи',
       typeNameLabel: 'Название',
       typeNameRequired: 'Введите название',
@@ -117,7 +101,7 @@ export const appCopy: Record<Locale, AppText> = {
       eventTypesEmpty: 'Типов встреч пока нет — создайте первый, чтобы гости могли записаться',
       eventTypesLoadError: 'Не удалось загрузить типы встреч',
       calendarTitle: 'Календарь',
-      calendarHint: 'Выберите день, чтобы указать часы приёма — на 14 дней вперёд',
+      calendarHint: 'Выберите день, чтобы указать часы приёма — 14 дней, включая сегодня',
       dayTitle: 'Часы приёма',
       dayClosed: 'День закрыт — часы не указаны',
       addInterval: 'Добавить интервал',
@@ -185,17 +169,10 @@ export const appCopy: Record<Locale, AppText> = {
     },
   },
   en: {
-    login: {
-      title: 'Owner sign in',
-      hint: 'Enter your email — no password, no registration',
-      emailLabel: 'Email',
-      submit: 'Sign in',
-      invalidEmail: 'Enter a valid email',
-    },
     owner: {
       title: 'Your calendar',
       eventTypesTitle: 'Event types',
-      eventTypesHint: 'A guest first picks an event type, then a day and a free slot of its length',
+      eventTypesHint: 'A guest first picks an event type, then a day and a free 30-minute slot',
       newEventTypeTitle: 'New event type',
       typeNameLabel: 'Name',
       typeNameRequired: 'Enter a name',
@@ -206,7 +183,7 @@ export const appCopy: Record<Locale, AppText> = {
       eventTypesEmpty: 'No event types yet — create one so guests can book',
       eventTypesLoadError: 'Failed to load event types',
       calendarTitle: 'Calendar',
-      calendarHint: 'Pick a day to declare your hours — up to 14 days ahead',
+      calendarHint: 'Pick a day to declare your hours — 14 days, today included',
       dayTitle: 'Hours',
       dayClosed: 'Day closed — no hours declared',
       addInterval: 'Add interval',

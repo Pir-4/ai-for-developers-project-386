@@ -1,17 +1,15 @@
 import { describe, expect, it } from "vitest";
 import { buildApp } from "../src/app.js";
 
-const owner = "owner@example.com";
-const eventTypesUrl = `/api/owners/${encodeURIComponent(owner)}/event-types`;
+const eventTypesUrl = "/api/event-types";
 
 const validBody = {
   name: "Знакомство",
   description: "Первый созвон: знакомимся и обсуждаем идеи",
-  durationMinutes: 30,
 };
 
-describe("POST /api/owners/:ownerEmail/event-types", () => {
-  it("создаёт тип встречи и отдаёт 201 с серверным id и ownerEmail", async () => {
+describe("POST /api/event-types", () => {
+  it("создаёт тип встречи и отдаёт 201 с серверным id и длительностью 30 минут", async () => {
     const app = await buildApp({ dbPath: ":memory:" });
     const res = await app.inject({
       method: "POST",
@@ -22,8 +20,8 @@ describe("POST /api/owners/:ownerEmail/event-types", () => {
     expect(res.statusCode).toBe(201);
     expect(res.json()).toEqual({
       id: expect.any(Number),
-      ownerEmail: owner,
       ...validBody,
+      durationMinutes: 30,
     });
 
     await app.close();
@@ -44,53 +42,26 @@ describe("POST /api/owners/:ownerEmail/event-types", () => {
     });
 
     expect(list.statusCode).toBe(200);
-    expect(list.json()).toEqual([
-      {
-        id,
-        ownerEmail: owner,
-        ...validBody,
-      },
-    ]);
+    expect(list.json()).toEqual([{ id, ...validBody, durationMinutes: 30 }]);
 
     await app.close();
   });
 
-  it("отдаёт пустой список другому владельцу", async () => {
+  it("длительность из тела запроса игнорируется: все встречи по 30 минут", async () => {
     const app = await buildApp({ dbPath: ":memory:" });
-    await app.inject({ method: "POST", url: eventTypesUrl, payload: validBody });
-
-    const other = await app.inject({
-      method: "GET",
-      url: "/api/owners/other@example.com/event-types",
+    const res = await app.inject({
+      method: "POST",
+      url: eventTypesUrl,
+      payload: { ...validBody, durationMinutes: 90 },
     });
 
-    expect(other.statusCode).toBe(200);
-    expect(other.json()).toEqual([]);
+    expect(res.statusCode).toBe(201);
+    expect(res.json().durationMinutes).toBe(30);
 
     await app.close();
   });
 
   it.each([
-    {
-      what: "длительность не кратна 15",
-      payload: { ...validBody, durationMinutes: 7 },
-      path: "durationMinutes",
-    },
-    {
-      what: "длительность меньше 15",
-      payload: { ...validBody, durationMinutes: 0 },
-      path: "durationMinutes",
-    },
-    {
-      what: "длительность больше 240",
-      payload: { ...validBody, durationMinutes: 255 },
-      path: "durationMinutes",
-    },
-    {
-      what: "длительность — не число",
-      payload: { ...validBody, durationMinutes: "30 минут" },
-      path: "durationMinutes",
-    },
     {
       what: "пустое название",
       payload: { ...validBody, name: "" },
@@ -117,8 +88,8 @@ describe("POST /api/owners/:ownerEmail/event-types", () => {
       path: "description",
     },
     {
-      what: "нет поля durationMinutes",
-      payload: { name: validBody.name, description: validBody.description },
+      what: "нет поля description",
+      payload: { name: validBody.name },
       path: "",
     },
   ])("отвечает 422, если $what", async ({ payload, path }) => {
@@ -152,7 +123,7 @@ describe("обрезка пробелов при создании типа", () 
     const res = await app.inject({
       method: "POST",
       url: eventTypesUrl,
-      payload: { ...validBody, name: "  Знакомство ", description: " Первый созвон  " },
+      payload: { name: "  Знакомство ", description: " Первый созвон  " },
     });
     expect(res.statusCode).toBe(201);
     expect(res.json()).toMatchObject({ name: "Знакомство", description: "Первый созвон" });
@@ -160,8 +131,8 @@ describe("обрезка пробелов при создании типа", () 
   });
 });
 
-describe("GET /api/owners/:ownerEmail/event-types/:eventTypeId", () => {
-  it("отдаёт тип встречи владельца", async () => {
+describe("GET /api/event-types/:eventTypeId", () => {
+  it("отдаёт тип встречи", async () => {
     const app = await buildApp({ dbPath: ":memory:" });
     const { id } = (
       await app.inject({ method: "POST", url: eventTypesUrl, payload: validBody })
@@ -169,25 +140,17 @@ describe("GET /api/owners/:ownerEmail/event-types/:eventTypeId", () => {
 
     const res = await app.inject({ method: "GET", url: `${eventTypesUrl}/${id}` });
     expect(res.statusCode).toBe(200);
-    expect(res.json()).toEqual({ id, ownerEmail: owner, ...validBody });
+    expect(res.json()).toEqual({ id, ...validBody, durationMinutes: 30 });
 
     await app.close();
   });
 
-  it("404 на неизвестный id и на тип другого владельца", async () => {
+  it("404 на неизвестный id", async () => {
     const app = await buildApp({ dbPath: ":memory:" });
-    const { id } = (
-      await app.inject({ method: "POST", url: eventTypesUrl, payload: validBody })
-    ).json();
 
-    for (const url of [
-      `${eventTypesUrl}/999`,
-      `/api/owners/other%40example.com/event-types/${id}`,
-    ]) {
-      const res = await app.inject({ method: "GET", url });
-      expect(res.statusCode).toBe(404);
-      expect(res.json()).toHaveProperty("message");
-    }
+    const res = await app.inject({ method: "GET", url: `${eventTypesUrl}/999` });
+    expect(res.statusCode).toBe(404);
+    expect(res.json()).toHaveProperty("message");
 
     await app.close();
   });

@@ -11,6 +11,7 @@ import openapiGlue from "fastify-openapi-glue";
 import openapiSpec from "./generated/openapi.json" with { type: "json" };
 import { openDatabase } from "./db/index.js";
 import { createServiceHandlers } from "./services/index.js";
+import { ownerFromEnv, type Owner } from "./owner.js";
 
 // Из server/src и server/dist путь одинаково указывает на <repo>/web/dist.
 const webDist = fileURLToPath(new URL("../../web/dist", import.meta.url));
@@ -26,6 +27,8 @@ export interface BuildAppOptions {
   db?: DatabaseSync;
   /** Текущий момент. По умолчанию системное время; тесты передают фиксированный. */
   clock?: () => Date;
+  /** Единственный владелец календаря. По умолчанию — из OWNER_NAME / OWNER_EMAIL. */
+  owner?: Owner;
 }
 
 // Ошибка валидации запроса (Ajv через fastify-openapi-glue) → 422 в форме ValidationError из контракта.
@@ -67,13 +70,13 @@ export async function buildApp(
   // Роуты и валидация — из контракта (сгенерированная спека), хендлеры — services/.
   await app.register(openapiGlue, {
     specification: openapiSpec,
-    serviceHandlers: createServiceHandlers(db, clock),
+    serviceHandlers: createServiceHandlers(db, clock, options.owner ?? ownerFromEnv()),
     prefix: "/api",
   });
 
   if (existsSync(webDist)) {
     await app.register(fastifyStatic, { root: webDist, prefix: "/" });
-    // Клиентские роуты (/login, /owner/…, /book/…) отдают index.html,
+    // Клиентские роуты (/owner, /book/…) отдают index.html,
     // неизвестные /api/* остаются JSON 404.
     app.setNotFoundHandler((request, reply) => {
       if (request.url.startsWith("/api/")) {

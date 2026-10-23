@@ -1,5 +1,5 @@
 // All navigation targets of the app in one place.
-// Client routes (react-router): /, /login, /owner/:email, /book/:email, /book/:email/:eventTypeId.
+// Client routes (react-router): /, /owner, /book, /book/:eventTypeId.
 
 export const homeHref = '/'
 
@@ -7,19 +7,15 @@ export const homeHref = '/'
 export const howHref = '/#how'
 export const audiencesHref = '/#audiences'
 
-// Landing CTAs lead to the owner area (bare /owner redirects to /login).
-export const createMeetingHref = '/owner'
-
 export const githubHref =
   'https://github.com/Pir-4/ai-for-developers-project-386'
 export const hexletHref = 'https://ru.hexlet.io/programs/ai-for-developers'
 
-// The owner area of a specific owner (email is the key, no accounts).
-export const ownerHref = (email: string) => `/owner/${encodeURIComponent(email)}`
+// The owner area: the single predefined owner, no login.
+export const ownerHref = '/owner'
 
-// The owner's event-type catalog — the link the owner shares; the guest starts by picking a type.
-export const guestHref = (email: string) => `/book/${encodeURIComponent(email)}`
+// The guest's entry point — the owner's event-type catalog; landing CTAs lead here.
+export const guestHref = '/book'
 
-// One event type's booking page: a date, then a free slot of that type's length.
-export const eventTypeHref = (email: string, eventTypeId: number) =>
-  `${guestHref(email)}/${eventTypeId}`
+// One event type's booking page: a date, then a free 30-minute slot.
+export const eventTypeHref = (eventTypeId: number) => `${guestHref}/${eventTypeId}`

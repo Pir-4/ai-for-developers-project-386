@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react'
-import { Link, useParams } from 'react-router'
+import { Link } from 'react-router'
 import { Box, Card, Container, Stack, Text, Title } from '@mantine/core'
 import { listEventTypes, type EventType } from '../api.ts'
 import { useAppText } from '../i18n.tsx'
 import { eventTypeHref } from '../links.ts'
+import { useOwner } from '../useOwner.ts'
 
 // Card row, per docs/ui-style.md: CSS grid auto-fit, no breakpoint JS.
 const cardGridStyle = {
@@ -13,12 +14,11 @@ const cardGridStyle = {
 } as const
 
 /**
- * Guest entry point (/book/:email): the owner's event types. Picking a card
- * leads to that type's page (/book/:email/:eventTypeId) — a date, then a slot.
+ * Guest entry point (/book): the owner's event types. Picking a card leads to
+ * that type's page (/book/:eventTypeId) — a date, then a slot.
  */
 export function GuestCatalogPage() {
-  const { email = '' } = useParams()
-  const ownerEmail = decodeURIComponent(email)
+  const owner = useOwner()
   const t = useAppText().guestCatalog
   const errorsText = useAppText().errors
   const shared = useAppText().shared
@@ -29,7 +29,7 @@ export function GuestCatalogPage() {
   useEffect(() => {
     let cancelled = false
     setState('loading')
-    listEventTypes(ownerEmail)
+    listEventTypes()
       .then((loaded) => {
         if (cancelled) return
         setItems(loaded)
@@ -41,14 +41,14 @@ export function GuestCatalogPage() {
     return () => {
       cancelled = true
     }
-  }, [ownerEmail])
+  }, [])
 
   return (
     <Container size="lg" py="xl">
       <Stack gap="lg">
         <Stack gap="xs">
           <Title order={1}>{t.title}</Title>
-          <Text c="dimmed">{`${t.ownerLabel} ${ownerEmail}`}</Text>
+          {owner && <Text c="dimmed">{`${t.ownerLabel} ${owner.name}`}</Text>}
           <Text c="dimmed" size="sm">
             {t.hint}
           </Text>
@@ -69,7 +69,7 @@ export function GuestCatalogPage() {
               <Card
                 key={item.id}
                 component={Link}
-                to={eventTypeHref(ownerEmail, item.id)}
+                to={eventTypeHref(item.id)}
                 withBorder
                 p="lg"
               >

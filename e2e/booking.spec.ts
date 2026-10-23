@@ -1,14 +1,16 @@
 import { expect, test, type Page } from "@playwright/test";
 
 // The full booking scenario through the UI, as the reviewer asked:
-// the owner signs in, creates an event type and opens a day; a guest picks the
-// type, the day and a free slot and books it; the owner sees the meeting; the
-// next guest sees that slot as taken — in the booked type and in an
-// overlapping slot of the owner's other type.
+// the single predefined owner opens their area (no login), creates two event
+// types and opens a day; a guest follows the landing CTA, picks a type, the day
+// and a free 30-minute slot and books it; the owner sees the meeting; the next
+// guest sees that slot as taken — in the booked type and in the other type.
 
-const ownerEmail = `owner-${Date.now()}@example.com`;
-const eventTypeName = "Консультация";
-const longTypeName = "Стратегическая сессия";
+// Unique per run: against a reused database (E2E_BASE_URL) earlier runs' types
+// stay in the catalog.
+const runId = Date.now();
+const eventTypeName = `Консультация ${runId}`;
+const otherTypeName = `Знакомство ${runId}`;
 
 // Tomorrow in the browser's zone (Europe/Moscow, see playwright.config.ts) —
 // far enough ahead that the 11:00 slot has not started yet.
@@ -35,29 +37,22 @@ async function pickTomorrow(page: Page) {
 test("owner creates event types, a guest books one, the booking blocks both types", async ({
   page,
 }) => {
-  // Owner: sign in by email.
-  await page.goto("/login");
-  await page.getByLabel("Email").fill(ownerEmail);
-  await page.getByRole("button", { name: "Войти" }).click();
-  await expect(page).toHaveURL(`/owner/${encodeURIComponent(ownerEmail)}`);
+  // Owner: the owner area opens straight away — one predefined owner, no login.
+  await page.goto("/owner");
+  await expect(page.getByRole("heading", { level: 1, name: "Ваш календарь" })).toBeVisible();
 
-  // Owner: create a 30-minute event type.
-  await page.getByLabel("Название").fill(eventTypeName);
-  await page.getByLabel("Описание").fill("Разбор вашей задачи за полчаса");
-  await page.getByRole("combobox", { name: "Длительность" }).click();
-  await page.getByRole("option", { name: "30 мин" }).click();
-  await expect(page.getByRole("combobox", { name: "Длительность" })).toHaveValue("30 мин");
-  await page.getByRole("button", { name: "Создать тип" }).click();
-  await expect(page.getByRole("article").filter({ hasText: eventTypeName })).toBeVisible();
-
-  // Owner: a second, 45-minute type over the same calendar.
-  await page.getByLabel("Название").fill(longTypeName);
-  await page.getByLabel("Описание").fill("Подробный разбор за 45 минут");
-  await page.getByRole("combobox", { name: "Длительность" }).click();
-  await page.getByRole("option", { name: "45 мин" }).click();
-  await expect(page.getByRole("combobox", { name: "Длительность" })).toHaveValue("45 мин");
-  await page.getByRole("button", { name: "Создать тип" }).click();
-  await expect(page.getByRole("article").filter({ hasText: longTypeName })).toBeVisible();
+  // Owner: two event types; the duration is fixed at 30 minutes.
+  for (const [name, description] of [
+    [eventTypeName, "Разбор вашей задачи за полчаса"],
+    [otherTypeName, "Первый короткий созвон"],
+  ]) {
+    await page.getByLabel("Название").fill(name);
+    await page.getByLabel("Описание").fill(description);
+    await page.getByRole("button", { name: "Создать тип" }).click();
+    const card = page.getByRole("article").filter({ hasText: name });
+    await expect(card).toBeVisible();
+    await expect(card).toContainText("30 мин");
+  }
 
   // Owner: open tomorrow 11:00–15:00 (the editor's default interval).
   await pickTomorrow(page);
@@ -65,16 +60,20 @@ test("owner creates event types, a guest books one, the booking blocks both type
   await page.getByRole("button", { name: "Сохранить день" }).click();
   await expect(page.getByText("Сохранено")).toBeVisible();
 
-  // Guest: the shared link opens the catalog; pick the type.
-  await page.goto(`/book/${encodeURIComponent(ownerEmail)}`);
+  // Guest: the landing's main CTA leads to the catalog; pick the type.
+  await page.goto("/");
+  await page.getByRole("main").getByRole("link", { name: "Записаться на звонок" }).first().click();
+  await expect(page).toHaveURL("/book");
   await expect(page.getByRole("heading", { level: 1, name: "Выберите тип встречи" })).toBeVisible();
   await page.getByRole("link", { name: new RegExp(eventTypeName) }).click();
   await expect(page.getByRole("heading", { level: 1, name: eventTypeName })).toBeVisible();
 
-  // Guest: tomorrow, then the free 11:00–11:30 slot (30 minutes — the type's length).
+  // Guest: tomorrow, then the free 11:00–11:30 slot; slots step every 30 minutes.
   await pickTomorrow(page);
   const slot = page.getByRole("button", { name: /11:00 - 11:30/ });
   await expect(slot).toContainText("Свободно");
+  await expect(page.getByRole("button", { name: /11:30 - 12:00/ })).toBeVisible();
+  await expect(page.getByRole("button", { name: /11:15/ })).toHaveCount(0);
   await slot.click();
 
   await page.getByLabel("Ваше имя").fill("Анна");
@@ -84,14 +83,15 @@ test("owner creates event types, a guest books one, the booking blocks both type
   await expect(page.getByText(eventTypeName)).toBeVisible();
 
   // Owner: the meeting is listed with the event type's name and the guest.
-  await page.goto(`/owner/${encodeURIComponent(ownerEmail)}`);
-  const meeting = page.getByRole("article").filter({ hasText: "Анна <anna@example.com>" });
+  await page.goto("/owner");
+  const meeting = page.getByRole("article").filter({ hasText: eventTypeName }).filter({
+    hasText: "Анна <anna@example.com>",
+  });
   await expect(meeting).toBeVisible();
-  await expect(meeting).toContainText(eventTypeName);
   await expect(meeting).toContainText("30 мин");
 
   // Next guest: the booked slot is shown as taken and cannot be picked.
-  await page.goto(`/book/${encodeURIComponent(ownerEmail)}`);
+  await page.goto("/book");
   await page.getByRole("link", { name: new RegExp(eventTypeName) }).click();
   await pickTomorrow(page);
   const taken = page.getByRole("button", { name: /11:00 - 11:30/ });
@@ -99,16 +99,13 @@ test("owner creates event types, a guest books one, the booking blocks both type
   await expect(taken).toBeDisabled();
   await expect(page.getByRole("button", { name: /11:30 - 12:00/ })).toBeEnabled();
 
-  // Next guest, the other type: its 11:00–11:45 slot overlaps the booked
-  // 11:00–11:30 and is taken too; 11:45–12:30 clears it and stays free.
-  await page.goto(`/book/${encodeURIComponent(ownerEmail)}`);
-  await page.getByRole("link", { name: new RegExp(longTypeName) }).click();
-  await expect(page.getByRole("heading", { level: 1, name: longTypeName })).toBeVisible();
+  // Next guest, the other type: a booking blocks the slot across all types.
+  await page.goto("/book");
+  await page.getByRole("link", { name: new RegExp(otherTypeName) }).click();
+  await expect(page.getByRole("heading", { level: 1, name: otherTypeName })).toBeVisible();
   await pickTomorrow(page);
-  const overlapping = page.getByRole("button", { name: /11:00 - 11:45/ });
+  const overlapping = page.getByRole("button", { name: /11:00 - 11:30/ });
   await expect(overlapping).toContainText("Занято");
   await expect(overlapping).toBeDisabled();
-  const clear = page.getByRole("button", { name: /11:45 - 12:30/ });
-  await expect(clear).toContainText("Свободно");
-  await expect(clear).toBeEnabled();
+  await expect(page.getByRole("button", { name: /11:30 - 12:00/ })).toBeEnabled();
 });

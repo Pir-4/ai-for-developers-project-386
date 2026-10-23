@@ -51,17 +51,16 @@ Sticky single line: logo left, nav center/right, primary button right.
 | Nav link 1             | `Как это работает` → `/#how` |
 | Nav link 2             | `Для кого` → `/#audiences` (leads to the three-audience section) |
 | Language switcher      | `RU` / `EN` — toggles all UI copy (§ 6.1) |
-| Primary button         | `Создать встречу` → § 4.1 |
+| Owner link             | `Кабинет владельца` → `/owner` (secondary, hidden below `xs` like the nav links; also in the footer) |
+| Primary button         | `Записаться на звонок` → § 4.1 |
 
 ### 3.2 Hero — `HeroSection`
 
 - H1: `Запись на звонок за 30 секунд` («30 seconds» = booking speed, not slot
   length)
-- Subheading: `Вы публикуете свободные слоты — гость выбирает удобное время
-  сам. Никакой переписки «а вам удобно в 15:00 или в 15:30?».`
-  (slot durations deliberately not in copy — the product will offer 15- and
-  30-minute slots)
-- Buttons: `Создать встречу` (primary, § 4.1) and `Как это работает`
+- Subheading: `Выберите тип встречи и свободный слот в календаре — запись
+  готова. Никакой переписки «а вам удобно в 15:00 или в 15:30?».`
+- Buttons: `Записаться на звонок` (primary, § 4.1) and `Как это работает`
   (secondary, → `/#how`).
 - No images or illustrations in this stage — text layout only.
 - **Visual scale (contract)**: the hero is the dominant block of the page —
@@ -73,14 +72,15 @@ Sticky single line: logo left, nav center/right, primary button right.
 
 ### 3.3 Steps — `HowItWorksSection` (`id="how"`)
 
-H2: `Как это работает`. Exactly three steps in a real ordered list (§ 6):
+H2: `Как это работает`. Exactly three steps in a real ordered list (§ 6), told
+from the guest's side:
 
-1. `Опубликуйте слот` — `Отметьте свободные интервалы — утром, днём или
-   вечером, когда вам удобно говорить.`
-2. `Поделитесь ссылкой` — `Отправьте гостю ссылку на страницу записи — он
-   увидит все свободные слоты сразу.`
-3. `Созвонитесь` — `Гость выбирает время, встреча появляется в вашем списке
-   ближайших звонков. Остаётся только позвонить.`
+1. `Выберите тип встречи` — `Откройте страницу записи и выберите, о чём хотите
+   поговорить, — каждая встреча длится 30 минут.`
+2. `Выберите дату и время` — `Календарь показывает ближайшие 14 дней и все
+   свободные слоты — занятые видны, но недоступны.`
+3. `Созвонитесь` — `Оставьте имя и email — встреча сразу появится в списке
+   ближайших звонков владельца. Остаётся только позвонить.`
 
 Desktop: horizontal card row. Mobile: vertical stack.
 
@@ -101,13 +101,13 @@ Desktop: single row. Mobile: stacked.
 ### 3.5 Closing CTA — `CtaSection` (`id="cta"`)
 
 - H2: `Готовы перестать согласовывать время по переписке?`
-- Supporting line: `Опубликуйте первый слот — ссылкой можно делиться уже сегодня.`
-- Primary button: `Создать встречу` (§ 4.1).
+- Supporting line: `Выберите свободный слот — запись занимает меньше минуты.`
+- Primary button: `Записаться на звонок` (§ 4.1).
 
 ### 3.6 Footer — `SiteFooter`
 
-- Column "Продукт": links `Как это работает` (`/#how`) and `Для кого`
-  (`/#audiences`) — same targets as the header.
+- Column "Продукт": links `Как это работает` (`/#how`), `Для кого`
+  (`/#audiences`) and `Кабинет владельца` (`/owner`) — same targets as the header.
 - Column "Проект": external link `GitHub` →
   `https://github.com/Pir-4/ai-for-developers-project-386`, `target="_blank"`,
   `rel` contains `noopener`.
@@ -118,8 +118,8 @@ Desktop: single row. Mobile: stacked.
 ## 4. Navigation and URLs
 
 - The app has a client router (react-router, introduced by issue #20): `/` is
-  the landing, `/login` signs an owner in by email, `/owner/:email` is the
-  owner area, `/book/:email/:id` is the guest link target.
+  the landing, `/book` is the guest's event-type catalog, `/book/:id` books one
+  type, `/owner` is the single predefined owner's area (no login).
 - Anchor ids are stable contract values: `how`, `audiences`, `cta`.
 - Header and footer nav links point to `/#how` / `/#audiences` — the landing
   anchors addressed app-wide, so the links work from every page, not only from
@@ -127,12 +127,12 @@ Desktop: single row. Mobile: stacked.
 
 ### 4.1 CTA behavior
 
-- All `Создать встречу` buttons (header, hero, closing) lead to `/owner` —
-  the owner area; bare `/owner` redirects to `/login` (issue #20).
+- All `Записаться на звонок` buttons (header, hero, closing) lead the guest
+  to `/book` — the event-type catalog.
 - Rendered as router links (client-side navigation, no full reload).
 - No click handlers beyond navigation, no alerts, no disabled state.
-- The target is defined once: `web/src/links.ts` exports
-  `createMeetingHref` (currently `'/owner'`).
+- The target is defined once: `web/src/links.ts` exports `guestHref`
+  (`'/book'`); the owner area is `ownerHref` (`'/owner'`).
 
 ## 5. Responsive behavior
 
@@ -172,17 +172,16 @@ Desktop: single row. Mobile: stacked.
   sees their last locale. Invalid/absent value → `ru`.
 - `<html lang>` reflects the active locale (`lang="ru"` / `lang="en"`).
 - English copy (canonical, mirrors § 3.1–3.6 structure):
-  - logo: `Call Booking`; nav: `How it works`, `Who it is for`; CTA (mirrors
-    `Создать встречу`): `Create a meeting`
-  - hero H1: `Book a call in 30 seconds`; subheading: `Publish the slots that
-    work for you — your guest picks a time without a single message back and
-    forth.`
-  - steps heading `How it works`; steps: `Publish a slot` / `Share the link`
-    / `Get on the call` with bodies mirroring § 3.3
+  - logo: `Call Booking`; nav: `How it works`, `Who it is for`, `Owner area`;
+    CTA (mirrors `Записаться на звонок`): `Book a call`
+  - hero H1: `Book a call in 30 seconds`; subheading: `Pick a meeting type and
+    a free slot in the calendar — that is it. No messages back and forth.`
+  - steps heading `How it works`; steps: `Pick a meeting type` / `Pick a date
+    and time` / `Get on the call` with bodies mirroring § 3.3
   - audiences heading `Who it is for`; cards: `For the meeting owner`,
     `For colleagues and teams`, `For guests without an account` mirroring § 3.4
   - closing CTA: `Ready to stop negotiating time over chat?` + supporting line
-    mirroring § 3.5, button `Create a meeting`
+    mirroring § 3.5, button `Book a call`
   - footer: columns `Product` / `Project`, links mirror § 3.6 (the Hexlet line
     stays `Учебный проект Хекслета` — a proper noun of the school, no `en` variant)
   The implementation stores both variants as objects in
@@ -213,9 +212,9 @@ Functional test cases:
 4. Steps section renders an ordered list with exactly 3 items, each item
    containing its canonical title.
 5. Audiences section renders exactly 3 cards with canonical titles.
-6. Closing CTA section has id `cta` and a link/button named `Создать встречу`
-   with `href="/owner"`; header and hero primary CTAs share the same href from
-   `links.ts`.
+6. Closing CTA section has id `cta` and a link/button named `Записаться на
+   звонок` with `href="/book"`; header and hero primary CTAs share the same
+   href from `links.ts`.
 7. Footer contains the two nav links with the same hrefs as the header and two
    external links (GitHub, Hexlet) with `target="_blank"` and `rel` containing
    `noopener`.
@@ -251,6 +250,12 @@ dominant block per § 3.2; layout stacks without horizontal scroll at 375px;
 header (logo + switcher + CTA) fits at 375px in both locales.
 
 ## 9. Decision log
+
+- 2026-10-23 — Hexlet review: the landing leads the **guest** to booking. All
+  primary CTAs become `Записаться на звонок` → `/book`; the owner area is a
+  secondary `Кабинет владельца` link → `/owner`. `/login` is gone — there is a
+  single predefined owner (`docs/specs/single-owner.md`). Hero, steps and
+  closing copy are rewritten from the guest's side.
 
 - 2026-10-06 — Navigation model superseded by issue #20: react-router
   introduced (client routes `/`, `/login`, `/owner/:email`, `/book/:email/:id`).
