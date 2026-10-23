@@ -1,6 +1,6 @@
 # Specification: Single owner, 30-minute slots, 14-day window
 
-- **Stage**: review fixes, round 2 (Hexlet review, 2026-10).
+- **Stage**: review fixes, round 2 (Hexlet review, 2026-10). Issue: #53 (supersedes #40).
 - **Branch / PR**: `fix/review-single-owner-grid`.
 - Supersedes the parts of `event-types.md` that concern owner identity, durations and the grid.
 
