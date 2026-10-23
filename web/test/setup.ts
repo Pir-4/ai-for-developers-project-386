@@ -50,6 +50,12 @@ if (!('fonts' in document)) {
   })
 }
 
+// jsdom does not implement scrollIntoView; an open Mantine Combobox (Select)
+// calls it on a timer to scroll the selected option into view.
+if (!Element.prototype.scrollIntoView) {
+  Element.prototype.scrollIntoView = () => {}
+}
+
 afterEach(() => {
   cleanup()
 })
