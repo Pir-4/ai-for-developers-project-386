@@ -6,7 +6,7 @@
 
 import type { Client, ClientMeta, Options as Options2, RequestResult, TDataShape } from './client';
 import { client } from './client.gen';
-import type { CreateBookingData, CreateBookingErrors, CreateBookingResponses, CreateEventTypeData, CreateEventTypeErrors, CreateEventTypeResponses, GetEventTypeData, GetEventTypeErrors, GetEventTypeResponses, HealthData, HealthResponses, ListAvailabilityData, ListAvailabilityResponses, ListEventTypesData, ListEventTypesResponses, ListMeetingsData, ListMeetingsResponses, ListSlotsData, ListSlotsErrors, ListSlotsResponses, SetAvailabilityData, SetAvailabilityErrors, SetAvailabilityResponses } from './types.gen';
+import type { CreateBookingData, CreateBookingErrors, CreateBookingResponses, CreateEventTypeData, CreateEventTypeErrors, CreateEventTypeResponses, GetEventTypeData, GetEventTypeErrors, GetEventTypeResponses, GetOwnerData, GetOwnerResponses, HealthData, HealthResponses, ListAvailabilityData, ListAvailabilityResponses, ListEventTypesData, ListEventTypesResponses, ListMeetingsData, ListMeetingsResponses, ListSlotsData, ListSlotsErrors, ListSlotsResponses, SetAvailabilityData, SetAvailabilityErrors, SetAvailabilityResponses } from './types.gen';
 
 export type Options<TData extends TDataShape = TDataShape, ThrowOnError extends boolean = boolean, TResponse = unknown> = Options2<TData, ThrowOnError, TResponse> & {
     /**
@@ -23,20 +23,15 @@ export type Options<TData extends TDataShape = TDataShape, ThrowOnError extends 
 };
 
 /**
- * Liveness probe.
- */
-export const health = <ThrowOnError extends boolean = false>(options?: Options<HealthData, ThrowOnError>): RequestResult<HealthResponses, unknown, ThrowOnError> => (options?.client ?? client).get<HealthResponses, unknown, ThrowOnError>({ url: '/health', ...options });
-
-/**
  * List the owner's availability for the booking window, oldest date first.
  */
-export const listAvailability = <ThrowOnError extends boolean = false>(options: Options<ListAvailabilityData, ThrowOnError>): RequestResult<ListAvailabilityResponses, unknown, ThrowOnError> => (options.client ?? client).get<ListAvailabilityResponses, unknown, ThrowOnError>({ url: '/owners/{ownerEmail}/availability', ...options });
+export const listAvailability = <ThrowOnError extends boolean = false>(options?: Options<ListAvailabilityData, ThrowOnError>): RequestResult<ListAvailabilityResponses, unknown, ThrowOnError> => (options?.client ?? client).get<ListAvailabilityResponses, unknown, ThrowOnError>({ url: '/availability', ...options });
 
 /**
  * Replace the owner's availability for one date.
  */
 export const setAvailability = <ThrowOnError extends boolean = false>(options: Options<SetAvailabilityData, ThrowOnError>): RequestResult<SetAvailabilityResponses, SetAvailabilityErrors, ThrowOnError> => (options.client ?? client).put<SetAvailabilityResponses, SetAvailabilityErrors, ThrowOnError>({
-    url: '/owners/{ownerEmail}/availability/{date}',
+    url: '/availability/{date}',
     ...options,
     headers: {
         'Content-Type': 'application/json',
@@ -47,13 +42,13 @@ export const setAvailability = <ThrowOnError extends boolean = false>(options: O
 /**
  * List the owner's event types, oldest first.
  */
-export const listEventTypes = <ThrowOnError extends boolean = false>(options: Options<ListEventTypesData, ThrowOnError>): RequestResult<ListEventTypesResponses, unknown, ThrowOnError> => (options.client ?? client).get<ListEventTypesResponses, unknown, ThrowOnError>({ url: '/owners/{ownerEmail}/event-types', ...options });
+export const listEventTypes = <ThrowOnError extends boolean = false>(options?: Options<ListEventTypesData, ThrowOnError>): RequestResult<ListEventTypesResponses, unknown, ThrowOnError> => (options?.client ?? client).get<ListEventTypesResponses, unknown, ThrowOnError>({ url: '/event-types', ...options });
 
 /**
  * Create an event type for the owner.
  */
 export const createEventType = <ThrowOnError extends boolean = false>(options: Options<CreateEventTypeData, ThrowOnError>): RequestResult<CreateEventTypeResponses, CreateEventTypeErrors, ThrowOnError> => (options.client ?? client).post<CreateEventTypeResponses, CreateEventTypeErrors, ThrowOnError>({
-    url: '/owners/{ownerEmail}/event-types',
+    url: '/event-types',
     ...options,
     headers: {
         'Content-Type': 'application/json',
@@ -64,13 +59,13 @@ export const createEventType = <ThrowOnError extends boolean = false>(options: O
 /**
  * One of the owner's event types.
  */
-export const getEventType = <ThrowOnError extends boolean = false>(options: Options<GetEventTypeData, ThrowOnError>): RequestResult<GetEventTypeResponses, GetEventTypeErrors, ThrowOnError> => (options.client ?? client).get<GetEventTypeResponses, GetEventTypeErrors, ThrowOnError>({ url: '/owners/{ownerEmail}/event-types/{eventTypeId}', ...options });
+export const getEventType = <ThrowOnError extends boolean = false>(options: Options<GetEventTypeData, ThrowOnError>): RequestResult<GetEventTypeResponses, GetEventTypeErrors, ThrowOnError> => (options.client ?? client).get<GetEventTypeResponses, GetEventTypeErrors, ThrowOnError>({ url: '/event-types/{eventTypeId}', ...options });
 
 /**
  * Book a slot of the event type on the owner's calendar.
  */
 export const createBooking = <ThrowOnError extends boolean = false>(options: Options<CreateBookingData, ThrowOnError>): RequestResult<CreateBookingResponses, CreateBookingErrors, ThrowOnError> => (options.client ?? client).post<CreateBookingResponses, CreateBookingErrors, ThrowOnError>({
-    url: '/owners/{ownerEmail}/event-types/{eventTypeId}/bookings',
+    url: '/event-types/{eventTypeId}/bookings',
     ...options,
     headers: {
         'Content-Type': 'application/json',
@@ -81,16 +76,26 @@ export const createBooking = <ThrowOnError extends boolean = false>(options: Opt
 /**
  * The event type's slot ladder for the whole booking window, ordered by start.
  *
- * Cells are laid end to end from the start of each availability interval, each
- * exactly the event type's duration long; a trailing remainder that does not fit
- * is dropped, and cells never span two intervals. Cells that have already started
- * are omitted entirely. A cell is busy when it overlaps any booking of the owner,
- * whatever its event type. The response is deliberately flat: the guest's browser
- * groups it into the guest's own local dates.
+ * Cells start every 30 minutes from the start of each availability interval, each
+ * exactly the event type's duration long (30 minutes) and fully inside its
+ * interval. Cells that have already started, and cells starting after the last day
+ * of the booking window (today + 13, UTC), are omitted entirely. A cell is busy
+ * when it overlaps any booking of the owner, whatever its event type. The response
+ * is deliberately flat: the guest's browser groups it into the guest's own local dates.
  */
-export const listSlots = <ThrowOnError extends boolean = false>(options: Options<ListSlotsData, ThrowOnError>): RequestResult<ListSlotsResponses, ListSlotsErrors, ThrowOnError> => (options.client ?? client).get<ListSlotsResponses, ListSlotsErrors, ThrowOnError>({ url: '/owners/{ownerEmail}/event-types/{eventTypeId}/slots', ...options });
+export const listSlots = <ThrowOnError extends boolean = false>(options: Options<ListSlotsData, ThrowOnError>): RequestResult<ListSlotsResponses, ListSlotsErrors, ThrowOnError> => (options.client ?? client).get<ListSlotsResponses, ListSlotsErrors, ThrowOnError>({ url: '/event-types/{eventTypeId}/slots', ...options });
+
+/**
+ * Liveness probe.
+ */
+export const health = <ThrowOnError extends boolean = false>(options?: Options<HealthData, ThrowOnError>): RequestResult<HealthResponses, unknown, ThrowOnError> => (options?.client ?? client).get<HealthResponses, unknown, ThrowOnError>({ url: '/health', ...options });
 
 /**
  * List the owner's upcoming meetings (`end >= now`), ordered by start ascending.
  */
-export const listMeetings = <ThrowOnError extends boolean = false>(options: Options<ListMeetingsData, ThrowOnError>): RequestResult<ListMeetingsResponses, unknown, ThrowOnError> => (options.client ?? client).get<ListMeetingsResponses, unknown, ThrowOnError>({ url: '/owners/{ownerEmail}/meetings', ...options });
+export const listMeetings = <ThrowOnError extends boolean = false>(options?: Options<ListMeetingsData, ThrowOnError>): RequestResult<ListMeetingsResponses, unknown, ThrowOnError> => (options?.client ?? client).get<ListMeetingsResponses, unknown, ThrowOnError>({ url: '/meetings', ...options });
+
+/**
+ * The predefined owner whose calendar this app serves.
+ */
+export const getOwner = <ThrowOnError extends boolean = false>(options?: Options<GetOwnerData, ThrowOnError>): RequestResult<GetOwnerResponses, unknown, ThrowOnError> => (options?.client ?? client).get<GetOwnerResponses, unknown, ThrowOnError>({ url: '/owner', ...options });

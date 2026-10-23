@@ -7,39 +7,11 @@
   },
   "tags": [],
   "paths": {
-    "/health": {
-      "get": {
-        "operationId": "health",
-        "description": "Liveness probe.",
-        "parameters": [],
-        "responses": {
-          "200": {
-            "description": "The request has succeeded.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HealthStatus"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/owners/{ownerEmail}/availability": {
+    "/availability": {
       "get": {
         "operationId": "listAvailability",
         "description": "List the owner's availability for the booking window, oldest date first.",
-        "parameters": [
-          {
-            "name": "ownerEmail",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
+        "parameters": [],
         "responses": {
           "200": {
             "description": "The request has succeeded.",
@@ -57,19 +29,11 @@
         }
       }
     },
-    "/owners/{ownerEmail}/availability/{date}": {
+    "/availability/{date}": {
       "put": {
         "operationId": "setAvailability",
         "description": "Replace the owner's availability for one date.",
         "parameters": [
-          {
-            "name": "ownerEmail",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
           {
             "name": "date",
             "in": "path",
@@ -124,20 +88,11 @@
         }
       }
     },
-    "/owners/{ownerEmail}/event-types": {
+    "/event-types": {
       "post": {
         "operationId": "createEventType",
         "description": "Create an event type for the owner.",
-        "parameters": [
-          {
-            "name": "ownerEmail",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
+        "parameters": [],
         "responses": {
           "201": {
             "description": "201 — the created event type.",
@@ -174,16 +129,7 @@
       "get": {
         "operationId": "listEventTypes",
         "description": "List the owner's event types, oldest first.",
-        "parameters": [
-          {
-            "name": "ownerEmail",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
+        "parameters": [],
         "responses": {
           "200": {
             "description": "The request has succeeded.",
@@ -201,19 +147,11 @@
         }
       }
     },
-    "/owners/{ownerEmail}/event-types/{eventTypeId}": {
+    "/event-types/{eventTypeId}": {
       "get": {
         "operationId": "getEventType",
         "description": "One of the owner's event types.",
         "parameters": [
-          {
-            "name": "ownerEmail",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
           {
             "name": "eventTypeId",
             "in": "path",
@@ -248,19 +186,11 @@
         }
       }
     },
-    "/owners/{ownerEmail}/event-types/{eventTypeId}/bookings": {
+    "/event-types/{eventTypeId}/bookings": {
       "post": {
         "operationId": "createBooking",
         "description": "Book a slot of the event type on the owner's calendar.",
         "parameters": [
-          {
-            "name": "ownerEmail",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
           {
             "name": "eventTypeId",
             "in": "path",
@@ -325,19 +255,11 @@
         }
       }
     },
-    "/owners/{ownerEmail}/event-types/{eventTypeId}/slots": {
+    "/event-types/{eventTypeId}/slots": {
       "get": {
         "operationId": "listSlots",
-        "description": "The event type's slot ladder for the whole booking window, ordered by start.\n\nCells are laid end to end from the start of each availability interval, each\nexactly the event type's duration long; a trailing remainder that does not fit\nis dropped, and cells never span two intervals. Cells that have already started\nare omitted entirely. A cell is busy when it overlaps any booking of the owner,\nwhatever its event type. The response is deliberately flat: the guest's browser\ngroups it into the guest's own local dates.",
+        "description": "The event type's slot ladder for the whole booking window, ordered by start.\n\nCells start every 30 minutes from the start of each availability interval, each\nexactly the event type's duration long (30 minutes) and fully inside its\ninterval. Cells that have already started, and cells starting after the last day\nof the booking window (today + 13, UTC), are omitted entirely. A cell is busy\nwhen it overlaps any booking of the owner, whatever its event type. The response\nis deliberately flat: the guest's browser groups it into the guest's own local dates.",
         "parameters": [
-          {
-            "name": "ownerEmail",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
           {
             "name": "eventTypeId",
             "in": "path",
@@ -375,20 +297,30 @@
         }
       }
     },
-    "/owners/{ownerEmail}/meetings": {
+    "/health": {
+      "get": {
+        "operationId": "health",
+        "description": "Liveness probe.",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "The request has succeeded.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthStatus"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/meetings": {
       "get": {
         "operationId": "listMeetings",
         "description": "List the owner's upcoming meetings (`end >= now`), ordered by start ascending.",
-        "parameters": [
-          {
-            "name": "ownerEmail",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
+        "parameters": [],
         "responses": {
           "200": {
             "description": "The request has succeeded.",
@@ -399,6 +331,25 @@
                   "items": {
                     "$ref": "#/components/schemas/Meeting"
                   }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/owner": {
+      "get": {
+        "operationId": "getOwner",
+        "description": "The predefined owner whose calendar this app serves.",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "The request has succeeded.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Owner"
                 }
               }
             }
@@ -460,7 +411,6 @@
         "required": [
           "id",
           "eventTypeId",
-          "ownerEmail",
           "start",
           "end",
           "durationMinutes",
@@ -479,10 +429,6 @@
             "format": "int32",
             "description": "The event type this booking is for."
           },
-          "ownerEmail": {
-            "type": "string",
-            "description": "Email of the owner this booking belongs to."
-          },
           "start": {
             "type": "string",
             "format": "date-time",
@@ -496,7 +442,7 @@
           "durationMinutes": {
             "type": "integer",
             "format": "int32",
-            "description": "Meeting length in minutes, taken from the event type at booking time."
+            "description": "Meeting length in minutes (always 30), taken from the event type at booking time."
           },
           "guestName": {
             "type": "string",
@@ -556,8 +502,7 @@
         "type": "object",
         "required": [
           "name",
-          "description",
-          "durationMinutes"
+          "description"
         ],
         "properties": {
           "name": {
@@ -571,14 +516,6 @@
             "minLength": 1,
             "maxLength": 500,
             "description": "What the meeting is about, shown to the guest."
-          },
-          "durationMinutes": {
-            "type": "integer",
-            "format": "int32",
-            "minimum": 15,
-            "maximum": 240,
-            "multipleOf": 15,
-            "description": "Meeting length in minutes: a multiple of 15, from 15 to 240."
           }
         },
         "description": "Body for creating an event type."
@@ -593,7 +530,7 @@
           "date": {
             "type": "string",
             "format": "date",
-            "description": "The owner's local calendar date the intervals were entered against, `YYYY-MM-DD`.\nThe server treats it as an opaque grouping key and derives nothing from it."
+            "description": "The owner's local calendar date the intervals were entered against, `YYYY-MM-DD`.\nMust fall within the booking window: today … today + 13 (UTC), 14 days in all."
           },
           "intervals": {
             "type": "array",
@@ -609,7 +546,6 @@
         "type": "object",
         "required": [
           "id",
-          "ownerEmail",
           "name",
           "description",
           "durationMinutes"
@@ -619,10 +555,6 @@
             "type": "integer",
             "format": "int32",
             "description": "Server-assigned identifier."
-          },
-          "ownerEmail": {
-            "type": "string",
-            "description": "Email of the owner this event type belongs to."
           },
           "name": {
             "type": "string",
@@ -635,10 +567,10 @@
           "durationMinutes": {
             "type": "integer",
             "format": "int32",
-            "description": "Meeting length in minutes — every slot of this type is exactly this long."
+            "description": "Meeting length in minutes — always 30, the length of every slot."
           }
         },
-        "description": "A kind of bookable meeting defined by an owner: name, description and duration."
+        "description": "A kind of bookable meeting defined by the owner: name and description; always 30 minutes."
       },
       "FieldError": {
         "type": "object",
@@ -692,7 +624,7 @@
             "description": "End of the stretch, UTC ISO 8601; strictly after `start`."
           }
         },
-        "description": "One continuous stretch of an owner's availability, as UTC instants.\n\nThe owner's browser converts the hours it displays into UTC; the server stores\nwhat it receives verbatim and performs no timezone expansion. See\n`docs/research/local-time-to-utc.md`."
+        "description": "One continuous stretch of an owner's availability, as UTC instants. Both bounds\nlie on the 30-minute grid.\n\nThe owner's browser converts the hours it displays into UTC; the server stores\nwhat it receives verbatim and performs no timezone expansion. See\n`docs/research/local-time-to-utc.md`."
       },
       "Meeting": {
         "type": "object",
@@ -700,7 +632,6 @@
           "id",
           "eventTypeId",
           "eventTypeName",
-          "ownerEmail",
           "start",
           "end",
           "durationMinutes",
@@ -721,10 +652,6 @@
           "eventTypeName": {
             "type": "string",
             "description": "Name of the event type, shown in the row."
-          },
-          "ownerEmail": {
-            "type": "string",
-            "description": "Email of the owner this meeting belongs to."
           },
           "start": {
             "type": "string",
@@ -764,6 +691,24 @@
           }
         },
         "description": "The referenced resource does not exist."
+      },
+      "Owner": {
+        "type": "object",
+        "required": [
+          "name",
+          "email"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Display name shown to guests."
+          },
+          "email": {
+            "type": "string",
+            "description": "Contact email."
+          }
+        },
+        "description": "The calendar owner: a single predefined profile from the server config."
       },
       "SetAvailabilityBody": {
         "type": "object",
@@ -808,7 +753,7 @@
             "description": "Whether it is still bookable."
           }
         },
-        "description": "One rung of the slot ladder: a candidate meeting of the event type's duration."
+        "description": "One rung of the slot ladder: a candidate 30-minute meeting."
       },
       "SlotStatus": {
         "type": "string",

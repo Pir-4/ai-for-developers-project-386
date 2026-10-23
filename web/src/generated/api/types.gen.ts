@@ -53,10 +53,6 @@ export type Booking = {
      */
     eventTypeId: number;
     /**
-     * Email of the owner this booking belongs to.
-     */
-    ownerEmail: string;
-    /**
      * Start of the booked interval, UTC ISO 8601.
      */
     start: string;
@@ -65,7 +61,7 @@ export type Booking = {
      */
     end: string;
     /**
-     * Meeting length in minutes, taken from the event type at booking time.
+     * Meeting length in minutes (always 30), taken from the event type at booking time.
      */
     durationMinutes: number;
     /**
@@ -122,10 +118,6 @@ export type CreateEventTypeBody = {
      * What the meeting is about, shown to the guest.
      */
     description: string;
-    /**
-     * Meeting length in minutes: a multiple of 15, from 15 to 240.
-     */
-    durationMinutes: number;
 };
 
 /**
@@ -134,7 +126,7 @@ export type CreateEventTypeBody = {
 export type DayAvailability = {
     /**
      * The owner's local calendar date the intervals were entered against, `YYYY-MM-DD`.
-     * The server treats it as an opaque grouping key and derives nothing from it.
+     * Must fall within the booking window: today … today + 13 (UTC), 14 days in all.
      */
     date: string;
     /**
@@ -144,17 +136,13 @@ export type DayAvailability = {
 };
 
 /**
- * A kind of bookable meeting defined by an owner: name, description and duration.
+ * A kind of bookable meeting defined by the owner: name and description; always 30 minutes.
  */
 export type EventType = {
     /**
      * Server-assigned identifier.
      */
     id: number;
-    /**
-     * Email of the owner this event type belongs to.
-     */
-    ownerEmail: string;
     /**
      * Short display name shown to the owner and the guest.
      */
@@ -164,7 +152,7 @@ export type EventType = {
      */
     description: string;
     /**
-     * Meeting length in minutes — every slot of this type is exactly this long.
+     * Meeting length in minutes — always 30, the length of every slot.
      */
     durationMinutes: number;
 };
@@ -194,7 +182,8 @@ export type HealthStatus = {
 };
 
 /**
- * One continuous stretch of an owner's availability, as UTC instants.
+ * One continuous stretch of an owner's availability, as UTC instants. Both bounds
+ * lie on the 30-minute grid.
  *
  * The owner's browser converts the hours it displays into UTC; the server stores
  * what it receives verbatim and performs no timezone expansion. See
@@ -228,10 +217,6 @@ export type Meeting = {
      */
     eventTypeName: string;
     /**
-     * Email of the owner this meeting belongs to.
-     */
-    ownerEmail: string;
-    /**
      * Start of the meeting, UTC ISO 8601.
      */
     start: string;
@@ -264,6 +249,20 @@ export type NotFoundError = {
 };
 
 /**
+ * The calendar owner: a single predefined profile from the server config.
+ */
+export type Owner = {
+    /**
+     * Display name shown to guests.
+     */
+    name: string;
+    /**
+     * Contact email.
+     */
+    email: string;
+};
+
+/**
  * Body for replacing one date's availability.
  */
 export type SetAvailabilityBody = {
@@ -274,7 +273,7 @@ export type SetAvailabilityBody = {
 };
 
 /**
- * One rung of the slot ladder: a candidate meeting of the event type's duration.
+ * One rung of the slot ladder: a candidate 30-minute meeting.
  */
 export type Slot = {
     /**
@@ -310,29 +309,11 @@ export type ValidationError = {
     errors: Array<FieldError>;
 };
 
-export type HealthData = {
+export type ListAvailabilityData = {
     body?: never;
     path?: never;
     query?: never;
-    url: '/health';
-};
-
-export type HealthResponses = {
-    /**
-     * The request has succeeded.
-     */
-    200: HealthStatus;
-};
-
-export type HealthResponse = HealthResponses[keyof HealthResponses];
-
-export type ListAvailabilityData = {
-    body?: never;
-    path: {
-        ownerEmail: string;
-    };
-    query?: never;
-    url: '/owners/{ownerEmail}/availability';
+    url: '/availability';
 };
 
 export type ListAvailabilityResponses = {
@@ -347,11 +328,10 @@ export type ListAvailabilityResponse = ListAvailabilityResponses[keyof ListAvail
 export type SetAvailabilityData = {
     body: SetAvailabilityBody;
     path: {
-        ownerEmail: string;
         date: string;
     };
     query?: never;
-    url: '/owners/{ownerEmail}/availability/{date}';
+    url: '/availability/{date}';
 };
 
 export type SetAvailabilityErrors = {
@@ -378,11 +358,9 @@ export type SetAvailabilityResponse = SetAvailabilityResponses[keyof SetAvailabi
 
 export type ListEventTypesData = {
     body?: never;
-    path: {
-        ownerEmail: string;
-    };
+    path?: never;
     query?: never;
-    url: '/owners/{ownerEmail}/event-types';
+    url: '/event-types';
 };
 
 export type ListEventTypesResponses = {
@@ -396,11 +374,9 @@ export type ListEventTypesResponse = ListEventTypesResponses[keyof ListEventType
 
 export type CreateEventTypeData = {
     body: CreateEventTypeBody;
-    path: {
-        ownerEmail: string;
-    };
+    path?: never;
     query?: never;
-    url: '/owners/{ownerEmail}/event-types';
+    url: '/event-types';
 };
 
 export type CreateEventTypeErrors = {
@@ -424,11 +400,10 @@ export type CreateEventTypeResponse = CreateEventTypeResponses[keyof CreateEvent
 export type GetEventTypeData = {
     body?: never;
     path: {
-        ownerEmail: string;
         eventTypeId: number;
     };
     query?: never;
-    url: '/owners/{ownerEmail}/event-types/{eventTypeId}';
+    url: '/event-types/{eventTypeId}';
 };
 
 export type GetEventTypeErrors = {
@@ -452,11 +427,10 @@ export type GetEventTypeResponse = GetEventTypeResponses[keyof GetEventTypeRespo
 export type CreateBookingData = {
     body: CreateBookingBody;
     path: {
-        ownerEmail: string;
         eventTypeId: number;
     };
     query?: never;
-    url: '/owners/{ownerEmail}/event-types/{eventTypeId}/bookings';
+    url: '/event-types/{eventTypeId}/bookings';
 };
 
 export type CreateBookingErrors = {
@@ -488,11 +462,10 @@ export type CreateBookingResponse = CreateBookingResponses[keyof CreateBookingRe
 export type ListSlotsData = {
     body?: never;
     path: {
-        ownerEmail: string;
         eventTypeId: number;
     };
     query?: never;
-    url: '/owners/{ownerEmail}/event-types/{eventTypeId}/slots';
+    url: '/event-types/{eventTypeId}/slots';
 };
 
 export type ListSlotsErrors = {
@@ -513,13 +486,27 @@ export type ListSlotsResponses = {
 
 export type ListSlotsResponse = ListSlotsResponses[keyof ListSlotsResponses];
 
+export type HealthData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/health';
+};
+
+export type HealthResponses = {
+    /**
+     * The request has succeeded.
+     */
+    200: HealthStatus;
+};
+
+export type HealthResponse = HealthResponses[keyof HealthResponses];
+
 export type ListMeetingsData = {
     body?: never;
-    path: {
-        ownerEmail: string;
-    };
+    path?: never;
     query?: never;
-    url: '/owners/{ownerEmail}/meetings';
+    url: '/meetings';
 };
 
 export type ListMeetingsResponses = {
@@ -530,3 +517,19 @@ export type ListMeetingsResponses = {
 };
 
 export type ListMeetingsResponse = ListMeetingsResponses[keyof ListMeetingsResponses];
+
+export type GetOwnerData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/owner';
+};
+
+export type GetOwnerResponses = {
+    /**
+     * The request has succeeded.
+     */
+    200: Owner;
+};
+
+export type GetOwnerResponse = GetOwnerResponses[keyof GetOwnerResponses];
