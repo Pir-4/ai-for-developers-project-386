@@ -60,8 +60,8 @@ describe('language switcher (spec § 6.1)', () => {
       within(banner).getByRole('link', { name: en.nav.how }),
     ).toHaveAttribute('href', '/#how')
     expect(
-      within(banner).getByRole('link', { name: en.createMeeting }),
-    ).toHaveAttribute('href', '/owner')
+      within(banner).getByRole('link', { name: en.bookCall }),
+    ).toHaveAttribute('href', '/book')
   })
 
   it('keeps anchor ids and hrefs unchanged across a switch', async () => {
@@ -126,12 +126,12 @@ describe('language switcher (spec § 6.1)', () => {
       en.audiences.heading,
       en.cta.heading,
     ])
-    const meetingLinks = screen.getAllByRole('link', {
-      name: en.createMeeting,
+    const bookLinks = screen.getAllByRole('link', {
+      name: en.bookCall,
     })
-    expect(meetingLinks).toHaveLength(3)
-    for (const link of meetingLinks) {
-      expect(link).toHaveAttribute('href', '/owner')
+    expect(bookLinks).toHaveLength(3)
+    for (const link of bookLinks) {
+      expect(link).toHaveAttribute('href', '/book')
     }
   })
 

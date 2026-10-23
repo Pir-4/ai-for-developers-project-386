@@ -6,10 +6,11 @@ import { landingCopy } from '../src/content/landing.ts'
 import { LocaleProvider } from '../src/i18n.tsx'
 import {
   audiencesHref,
-  createMeetingHref,
   githubHref,
+  guestHref,
   hexletHref,
   howHref,
+  ownerHref,
 } from '../src/links.ts'
 
 // Canonical copy transcribed from docs/specs/landing-page.md § 3 — an
@@ -18,29 +19,31 @@ const copy = {
   logo: 'Запись на звонок',
   navHow: 'Как это работает',
   navOwners: 'Для кого',
-  createMeeting: 'Создать встречу',
+  bookCall: 'Записаться на звонок',
+  ownerArea: 'Кабинет владельца',
   heroTitle: 'Запись на звонок за 30 секунд',
   heroSubtitle:
-    'Вы публикуете свободные слоты — гость выбирает удобное время сам. ' +
+    'Выберите тип встречи и свободный слот в календаре — запись готова. ' +
     'Никакой переписки «а вам удобно в 15:00 или в 15:30?».',
   howHeading: 'Как это работает',
   steps: [
     {
-      title: 'Опубликуйте слот',
+      title: 'Выберите тип встречи',
       body:
-        'Отметьте свободные интервалы — утром, днём или вечером, ' +
-        'когда вам удобно говорить.',
+        'Откройте страницу записи и выберите, о чём хотите поговорить, — ' +
+        'каждая встреча длится 30 минут.',
     },
     {
-      title: 'Поделитесь ссылкой',
+      title: 'Выберите дату и время',
       body:
-        'Отправьте гостю ссылку на страницу записи — он увидит все свободные слоты сразу.',
+        'Календарь показывает ближайшие 14 дней и все свободные слоты — ' +
+        'занятые видны, но недоступны.',
     },
     {
       title: 'Созвонитесь',
       body:
-        'Гость выбирает время, встреча появляется в вашем списке ближайших звонков. ' +
-        'Остаётся только позвонить.',
+        'Оставьте имя и email — встреча сразу появится в списке ближайших звонков ' +
+        'владельца. Остаётся только позвонить.',
     },
   ],
   audiencesHeading: 'Для кого этот сервис',
@@ -65,7 +68,7 @@ const copy = {
     },
   ],
   ctaHeading: 'Готовы перестать согласовывать время по переписке?',
-  ctaBody: 'Опубликуйте первый слот — ссылкой можно делиться уже сегодня.',
+  ctaBody: 'Выберите свободный слот — запись занимает меньше минуты.',
   footerProduct: 'Продукт',
   footerProject: 'Проект',
   footerGithub: 'GitHub',
@@ -87,7 +90,8 @@ describe('content constants', () => {
     expect(landingCopy.ru.logo).toBe(copy.logo)
     expect(landingCopy.ru.nav.how).toBe(copy.navHow)
     expect(landingCopy.ru.nav.owners).toBe(copy.navOwners)
-    expect(landingCopy.ru.createMeeting).toBe(copy.createMeeting)
+    expect(landingCopy.ru.bookCall).toBe(copy.bookCall)
+    expect(landingCopy.ru.ownerArea).toBe(copy.ownerArea)
     expect(landingCopy.ru.hero.title).toBe(copy.heroTitle)
     expect(landingCopy.ru.hero.subtitle).toBe(copy.heroSubtitle)
     expect(landingCopy.ru.how.heading).toBe(copy.howHeading)
@@ -105,7 +109,8 @@ describe('content constants', () => {
   it('declare the anchor contract of § 4', () => {
     expect(howHref).toBe('/#how')
     expect(audiencesHref).toBe('/#audiences')
-    expect(createMeetingHref).toBe('/owner')
+    expect(guestHref).toBe('/book')
+    expect(ownerHref).toBe('/owner')
     expect(githubHref).toBe(
       'https://github.com/Pir-4/ai-for-developers-project-386',
     )
@@ -165,11 +170,19 @@ describe('header', () => {
     ).toHaveAttribute('href', '/#audiences')
   })
 
-  it('shows the primary CTA', () => {
+  it('shows the primary CTA leading the guest to booking', () => {
     renderLanding()
     const banner = screen.getByRole('banner')
     expect(
-      within(banner).getByRole('link', { name: copy.createMeeting }),
+      within(banner).getByRole('link', { name: copy.bookCall }),
+    ).toHaveAttribute('href', '/book')
+  })
+
+  it('keeps the owner area as a secondary link', () => {
+    renderLanding()
+    const banner = screen.getByRole('banner')
+    expect(
+      within(banner).getByRole('link', { name: copy.ownerArea }),
     ).toHaveAttribute('href', '/owner')
   })
 })
@@ -212,12 +225,12 @@ describe('call-to-action', () => {
     expect(section).toHaveTextContent(copy.ctaBody)
   })
 
-  it('every "Create meeting" button leads to /owner', () => {
+  it('every "Book a call" button leads the guest to /book', () => {
     renderLanding()
-    const buttons = screen.getAllByRole('link', { name: copy.createMeeting })
+    const buttons = screen.getAllByRole('link', { name: copy.bookCall })
     expect(buttons).toHaveLength(3)
     for (const button of buttons) {
-      expect(button).toHaveAttribute('href', '/owner')
+      expect(button).toHaveAttribute('href', '/book')
     }
   })
 })

@@ -5,8 +5,8 @@ export type BlockCopy = { title: string; body: string }
 export type LandingText = {
   logo: string
   nav: { how: string; owners: string }
-  createMeeting: string
-  myMeetings: string
+  bookCall: string
+  ownerArea: string
   hero: { title: string; subtitle: string }
   how: { heading: string; steps: BlockCopy[] }
   audiences: { heading: string; cards: BlockCopy[] }
@@ -24,33 +24,34 @@ export const landingCopy: Record<Locale, LandingText> = {
       how: 'Как это работает',
       owners: 'Для кого',
     },
-    createMeeting: 'Создать встречу',
-    myMeetings: 'Мои встречи',
+    bookCall: 'Записаться на звонок',
+    ownerArea: 'Кабинет владельца',
     hero: {
       title: 'Запись на звонок за 30 секунд',
       subtitle:
-        'Вы публикуете свободные слоты — гость выбирает удобное время сам. ' +
+        'Выберите тип встречи и свободный слот в календаре — запись готова. ' +
         'Никакой переписки «а вам удобно в 15:00 или в 15:30?».',
     },
     how: {
       heading: 'Как это работает',
       steps: [
         {
-          title: 'Опубликуйте слот',
+          title: 'Выберите тип встречи',
           body:
-            'Отметьте свободные интервалы — утром, днём или вечером, ' +
-            'когда вам удобно говорить.',
+            'Откройте страницу записи и выберите, о чём хотите поговорить, — ' +
+            'каждая встреча длится 30 минут.',
         },
         {
-          title: 'Поделитесь ссылкой',
+          title: 'Выберите дату и время',
           body:
-            'Отправьте гостю ссылку на страницу записи — он увидит все свободные слоты сразу.',
+            'Календарь показывает ближайшие 14 дней и все свободные слоты — ' +
+            'занятые видны, но недоступны.',
         },
         {
           title: 'Созвонитесь',
           body:
-            'Гость выбирает время, встреча появляется в вашем списке ближайших звонков. ' +
-            'Остаётся только позвонить.',
+            'Оставьте имя и email — встреча сразу появится в списке ближайших звонков ' +
+            'владельца. Остаётся только позвонить.',
         },
       ],
     },
@@ -79,7 +80,7 @@ export const landingCopy: Record<Locale, LandingText> = {
     },
     cta: {
       heading: 'Готовы перестать согласовывать время по переписке?',
-      body: 'Опубликуйте первый слот — ссылкой можно делиться уже сегодня.',
+      body: 'Выберите свободный слот — запись занимает меньше минуты.',
     },
     footer: {
       product: 'Продукт',
@@ -94,33 +95,34 @@ export const landingCopy: Record<Locale, LandingText> = {
       how: 'How it works',
       owners: 'Who it is for',
     },
-    createMeeting: 'Create a meeting',
-    myMeetings: 'My meetings',
+    bookCall: 'Book a call',
+    ownerArea: 'Owner area',
     hero: {
       title: 'Book a call in 30 seconds',
       subtitle:
-        'Publish the slots that work for you — your guest picks a time ' +
-        'without a single message back and forth.',
+        'Pick a meeting type and a free slot in the calendar — that is it. ' +
+        'No messages back and forth.',
     },
     how: {
       heading: 'How it works',
       steps: [
         {
-          title: 'Publish a slot',
+          title: 'Pick a meeting type',
           body:
-            'Mark your free intervals — morning, afternoon or evening, ' +
-            'whenever you can talk.',
+            'Open the booking page and choose what you want to talk about — ' +
+            'every meeting is 30 minutes.',
         },
         {
-          title: 'Share the link',
+          title: 'Pick a date and time',
           body:
-            'Send your guest the booking page link — they see every free slot at once.',
+            'The calendar shows the next 14 days and every free slot — ' +
+            'taken ones are visible but disabled.',
         },
         {
           title: 'Get on the call',
           body:
-            'Your guest picks a time, the meeting shows up in your upcoming calls ' +
-            'list. All that is left is to ring.',
+            'Leave your name and email — the meeting shows up in the owner\'s ' +
+            'upcoming calls right away. All that is left is to ring.',
         },
       ],
     },
@@ -149,7 +151,7 @@ export const landingCopy: Record<Locale, LandingText> = {
     },
     cta: {
       heading: 'Ready to stop negotiating time over chat?',
-      body: 'Publish your first slot — the link is shareable today.',
+      body: 'Pick a free slot — booking takes under a minute.',
     },
     footer: {
       product: 'Product',

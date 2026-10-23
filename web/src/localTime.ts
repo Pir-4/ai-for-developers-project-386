@@ -48,10 +48,10 @@ export function toUtcInstant(date: string, time: string): string {
   return new Date(year!, month! - 1, day!, hours!, minutes!, 0, 0).toISOString()
 }
 
-/** Every 'HH:MM' on the 15-minute grid, '00:00' … '23:45'. */
-export function quarterHourOptions(): string[] {
+/** Every 'HH:MM' on the 30-minute grid, '00:00' … '23:30'. */
+export function halfHourOptions(): string[] {
   const options: string[] = []
-  for (let minutes = 0; minutes < 24 * 60; minutes += 15) {
+  for (let minutes = 0; minutes < 24 * 60; minutes += 30) {
     const hh = String(Math.floor(minutes / 60)).padStart(2, '0')
     const mm = String(minutes % 60).padStart(2, '0')
     options.push(`${hh}:${mm}`)

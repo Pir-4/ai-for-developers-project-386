@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react'
-import { useParams } from 'react-router'
 import {
   ActionIcon,
   Box,
@@ -20,7 +19,7 @@ import { DatePicker } from '@mantine/dates'
 import {
   ApiAvailabilityConflictError,
   ApiValidationError,
-  EVENT_TYPE_DURATIONS,
+  SLOT_MINUTES,
   createEventType,
   listAvailability,
   listEventTypes,
@@ -33,12 +32,13 @@ import {
 } from '../api.ts'
 import { useAppText } from '../i18n.tsx'
 import { eventTypeHref, guestHref } from '../links.ts'
+import { useOwner } from '../useOwner.ts'
 import {
   formatLocalDateTime,
   formatLocalTime,
   localDateOf,
   localTimezone,
-  quarterHourOptions,
+  halfHourOptions,
   toDateString,
   toUtcInstant,
 } from '../localTime.ts'
@@ -71,14 +71,13 @@ function draftsOverlap(drafts: Draft[]): boolean {
 }
 
 /**
- * Owner area (/owner/:email): the event types guests choose from, the calendar
- * they fill in, the link they share, and the meetings that came of it — one
- * page, so narrowing a day and seeing what already sits in it never needs a
- * navigation.
+ * Owner area (/owner) of the single predefined owner, no login: the event
+ * types guests choose from, the calendar they fill in, the link they share,
+ * and the meetings that came of it — one page, so narrowing a day and seeing
+ * what already sits in it never needs a navigation.
  */
 export function OwnerPage() {
-  const { email = '' } = useParams()
-  const ownerEmail = decodeURIComponent(email)
+  const owner = useOwner()
   const t = useAppText().owner
   const errorsText = useAppText().errors
   const shared = useAppText().shared
@@ -92,7 +91,6 @@ export function OwnerPage() {
   const [eventTypesFailed, setEventTypesFailed] = useState(false)
   const [typeName, setTypeName] = useState('')
   const [typeDescription, setTypeDescription] = useState('')
-  const [typeDuration, setTypeDuration] = useState('30')
   const [typeErrors, setTypeErrors] = useState<EventTypeFieldErrors>({})
   const [creatingType, setCreatingType] = useState(false)
 
@@ -105,14 +103,11 @@ export function OwnerPage() {
   const [blocking, setBlocking] = useState<BlockingMeeting[]>([])
 
   const timezone = useMemo(() => localTimezone(), [])
-  const options = useMemo(() => quarterHourOptions(), [])
+  const options = useMemo(() => halfHourOptions(), [])
 
   useEffect(() => {
     let cancelled = false
-    // A different owner in the URL starts from a clean slate, not the previous owner's data.
-    setAvailabilityState([])
-    setLoadFailed(false)
-    listAvailability(ownerEmail)
+    listAvailability()
       .then((loaded) => {
         if (!cancelled) setAvailabilityState(loaded)
       })
@@ -122,13 +117,11 @@ export function OwnerPage() {
     return () => {
       cancelled = true
     }
-  }, [ownerEmail])
+  }, [])
 
   useEffect(() => {
     let cancelled = false
-    setEventTypes([])
-    setEventTypesFailed(false)
-    listEventTypes(ownerEmail)
+    listEventTypes()
       .then((loaded) => {
         if (!cancelled) setEventTypes(loaded)
       })
@@ -138,13 +131,11 @@ export function OwnerPage() {
     return () => {
       cancelled = true
     }
-  }, [ownerEmail])
+  }, [])
 
   useEffect(() => {
     let cancelled = false
-    setMeetings([])
-    setMeetingsFailed(false)
-    listMeetings(ownerEmail)
+    listMeetings()
       .then((loaded) => {
         if (!cancelled) setMeetings(loaded)
       })
@@ -154,7 +145,7 @@ export function OwnerPage() {
     return () => {
       cancelled = true
     }
-  }, [ownerEmail])
+  }, [])
 
   const byDate = useMemo(() => {
     const map = new Map<string, DayAvailability>()
@@ -209,7 +200,6 @@ export function OwnerPage() {
     setSaving(true)
     try {
       const saved = await setAvailability(
-        ownerEmail,
         selectedDate,
         drafts.map((draft) => ({
           start: toUtcInstant(selectedDate, draft.from),
@@ -247,11 +237,7 @@ export function OwnerPage() {
 
     setCreatingType(true)
     try {
-      const created = await createEventType(ownerEmail, {
-        name,
-        description,
-        durationMinutes: Number(typeDuration),
-      })
+      const created = await createEventType({ name, description })
       setEventTypes((previous) => [...previous, created])
       setTypeName('')
       setTypeDescription('')
@@ -273,12 +259,15 @@ export function OwnerPage() {
   }
 
   const absolute = (href: string) => `${window.location.origin}${href}`
-  const guestUrl = absolute(guestHref(ownerEmail))
+  const guestUrl = absolute(guestHref)
 
   return (
     <Container size="lg" py="xl">
       <Stack gap="xl">
-        <Title order={1}>{t.title}</Title>
+        <Stack gap={4}>
+          <Title order={1}>{t.title}</Title>
+          {owner && <Text c="dimmed">{`${owner.name} · ${owner.email}`}</Text>}
+        </Stack>
 
         <Box component="section">
           <Stack gap="md">
@@ -307,16 +296,9 @@ export function OwnerPage() {
                       minRows={2}
                       onChange={(event) => setTypeDescription(event.currentTarget.value)}
                     />
-                    <Select
-                      label={t.typeDurationLabel}
-                      data={EVENT_TYPE_DURATIONS.map((minutes) => ({
-                        value: String(minutes),
-                        label: `${minutes} ${shared.minutesSuffix}`,
-                      }))}
-                      value={typeDuration}
-                      allowDeselect={false}
-                      onChange={(value) => value && setTypeDuration(value)}
-                    />
+                    <Text size="sm">
+                      {`${t.typeDurationLabel}: ${SLOT_MINUTES} ${shared.minutesSuffix}`}
+                    </Text>
                     <Button type="submit" loading={creatingType} style={{ alignSelf: 'flex-start' }}>
                       {t.createEventType}
                     </Button>
@@ -340,7 +322,7 @@ export function OwnerPage() {
                   </Text>
                 ) : (
                   eventTypes.map((eventType) => {
-                    const url = absolute(eventTypeHref(ownerEmail, eventType.id))
+                    const url = absolute(eventTypeHref(eventType.id))
                     return (
                       <Card key={eventType.id} component="article" withBorder p="md">
                         <Stack gap={4}>
@@ -399,7 +381,8 @@ export function OwnerPage() {
                     setSavedAt(null)
                   }}
                   minDate={today}
-                  maxDate={addDays(today, BOOKING_WINDOW_DAYS)}
+                  // Today plus 13 days: exactly 14 days counting today.
+                  maxDate={addDays(today, BOOKING_WINDOW_DAYS - 1)}
                   getDayProps={(date) => {
                     const hasAvailability = byDate.has(date)
                     const hasMeeting = meetingDates.has(date)

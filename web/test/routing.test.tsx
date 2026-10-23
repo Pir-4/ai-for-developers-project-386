@@ -12,13 +12,18 @@ const ru = appCopy.ru
 const en = appCopy.en
 const ruLanding = landingCopy.ru
 
-// Любой рендер App дергает API (доступность, типы, слоты, встречи) — стаб по
-// умолчанию: пустые списки, а конкретного типа встречи нет (404).
+const owner = { name: 'Анна Смирнова', email: 'anna@example.com' }
+
+// Любой рендер App дергает API (владелец, доступность, типы, слоты, встречи) —
+// стаб по умолчанию: профиль владельца, пустые списки, а конкретного типа
+// встречи нет (404).
 function stubApi() {
   stubFetch(({ url }) =>
-    /\/event-types\/\d+$/.test(url)
-      ? json(404, { message: 'event type not found' })
-      : json(200, []),
+    url.endsWith('/api/owner')
+      ? json(200, owner)
+      : /\/event-types\/\d+$/.test(url)
+        ? json(404, { message: 'event type not found' })
+        : json(200, []),
   )
 }
 
@@ -50,32 +55,17 @@ describe('клиентские роуты', () => {
     )
   })
 
-  it('/login рендерит форму входа', () => {
+  it('/login больше не существует — входа нет', () => {
     stubApi()
     renderApp('/login')
     expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent(
-      ru.login.title,
+      ru.notFound.title,
     )
-    expect(
-      screen.getByRole('textbox', { name: ru.login.emailLabel }),
-    ).toBeInTheDocument()
-    expect(
-      screen.getByRole('button', { name: ru.login.submit }),
-    ).toBeInTheDocument()
   })
 
-  it('голый /owner редиректит на /login', () => {
+  it('/owner рендерит кабинет единственного владельца без входа', async () => {
     stubApi()
     renderApp('/owner')
-    expect(window.location.pathname).toBe('/login')
-    expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent(
-      ru.login.title,
-    )
-  })
-
-  it('/owner/:email рендерит кабинет владельца', () => {
-    stubApi()
-    renderApp('/owner/owner@example.com')
     expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent(
       ru.owner.title,
     )
@@ -88,21 +78,22 @@ describe('клиентские роуты', () => {
         screen.getByRole('heading', { level: 2, name: section }),
       ).toBeInTheDocument()
     }
+    expect(await screen.findByText(/anna@example\.com/)).toBeInTheDocument()
   })
 
-  it('/book/:email рендерит каталог типов встреч владельца', async () => {
+  it('/book рендерит каталог типов встреч владельца', async () => {
     stubApi()
-    renderApp('/book/owner@example.com')
+    renderApp('/book')
     expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent(
       ru.guestCatalog.title,
     )
-    expect(screen.getByText(/owner@example\.com/)).toBeInTheDocument()
+    expect(await screen.findByText(new RegExp(owner.name))).toBeInTheDocument()
     expect(await screen.findByText(ru.guestCatalog.empty)).toBeInTheDocument()
   })
 
-  it('/book/:email/:eventTypeId рендерит запись на тип встречи', async () => {
+  it('/book/:eventTypeId рендерит запись на тип встречи', async () => {
     stubApi()
-    renderApp('/book/owner@example.com/5')
+    renderApp('/book/5')
     expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent(
       ru.guest.title,
     )
@@ -127,102 +118,52 @@ describe('клиентские роуты', () => {
   })
 })
 
-describe('вход по email (логин)', () => {
-  it('валидный email: переход в зону владельца, email запомнен', async () => {
-    stubApi()
-    const user = userEvent.setup()
-    renderApp('/login')
-    await user.type(
-      screen.getByRole('textbox', { name: ru.login.emailLabel }),
-      'owner@example.com',
-    )
-    await user.click(screen.getByRole('button', { name: ru.login.submit }))
-
-    expect(window.location.pathname).toBe('/owner/owner%40example.com')
-    expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent(
-      ru.owner.title,
-    )
-    expect(window.localStorage.getItem('owner.email')).toBe(
-      'owner@example.com',
-    )
-  })
-
-  it('невалидный email: ошибка, без перехода', async () => {
-    stubApi()
-    const user = userEvent.setup()
-    renderApp('/login')
-    await user.type(
-      screen.getByRole('textbox', { name: ru.login.emailLabel }),
-      'не-email',
-    )
-    await user.click(screen.getByRole('button', { name: ru.login.submit }))
-
-    expect(screen.getByText(ru.login.invalidEmail)).toBeInTheDocument()
-    expect(window.location.pathname).toBe('/login')
-    expect(window.localStorage.getItem('owner.email')).toBeNull()
-  })
-
-  it('последний email подставляется при возврате', () => {
-    stubApi()
-    window.localStorage.setItem('owner.email', 'saved@example.com')
-    renderApp('/login')
-    expect(
-      screen.getByRole('textbox', { name: ru.login.emailLabel }),
-    ).toHaveValue('saved@example.com')
-  })
-})
-
-describe('шапка: вход в «Мои встречи»', () => {
-  it('без запомненного email показывает «Создать встречу» → /owner', () => {
+describe('шапка и лендинг ведут гостя к записи', () => {
+  it('кнопка в шапке «Записаться на звонок» → /book', () => {
     stubApi()
     renderApp('/')
     const banner = screen.getByRole('banner')
     expect(
-      within(banner).getByRole('link', { name: ruLanding.createMeeting }),
+      within(banner).getByRole('link', { name: ruLanding.bookCall }),
+    ).toHaveAttribute('href', '/book')
+  })
+
+  it('все кнопки «Записаться на звонок» на лендинге ведут на /book', () => {
+    stubApi()
+    renderApp('/')
+    const main = screen.getByRole('main')
+    const links = within(main).getAllByRole('link', { name: ruLanding.bookCall })
+    expect(links.length).toBeGreaterThan(0)
+    for (const link of links) expect(link).toHaveAttribute('href', '/book')
+  })
+
+  it('кабинет владельца — вторичная ссылка на /owner', () => {
+    stubApi()
+    renderApp('/')
+    const banner = screen.getByRole('banner')
+    expect(
+      within(banner).getByRole('link', { name: ruLanding.ownerArea }),
     ).toHaveAttribute('href', '/owner')
-    expect(
-      within(banner).queryByRole('link', { name: ruLanding.myMeetings }),
-    ).not.toBeInTheDocument()
   })
 
-  it('с запомненным email показывает «Мои встречи» → /owner/<email>', () => {
-    stubApi()
-    window.localStorage.setItem('owner.email', 'saved@example.com')
-    renderApp('/')
-    const banner = screen.getByRole('banner')
-    expect(
-      within(banner).getByRole('link', { name: ruLanding.myMeetings }),
-    ).toHaveAttribute('href', '/owner/saved%40example.com')
-    expect(
-      within(banner).queryByRole('link', { name: ruLanding.createMeeting }),
-    ).not.toBeInTheDocument()
-  })
-
-  it('после входа по email шапка сразу переключается на «Мои встречи»', async () => {
+  it('клик по главной кнопке открывает каталог типов встреч', async () => {
     stubApi()
     const user = userEvent.setup()
-    renderApp('/login')
-    await user.type(
-      screen.getByRole('textbox', { name: ru.login.emailLabel }),
-      'owner@example.com',
+    renderApp('/')
+    const main = screen.getByRole('main')
+    await user.click(within(main).getAllByRole('link', { name: ruLanding.bookCall })[0]!)
+    expect(window.location.pathname).toBe('/book')
+    expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent(
+      ru.guestCatalog.title,
     )
-    await user.click(screen.getByRole('button', { name: ru.login.submit }))
-
-    const banner = screen.getByRole('banner')
-    expect(
-      await within(banner).findByRole('link', {
-        name: ruLanding.myMeetings,
-      }),
-    ).toHaveAttribute('href', '/owner/owner%40example.com')
   })
 })
 
 describe('переключатель языка на каждой странице', () => {
   it.each([
-    '/login',
-    '/owner/owner@example.com',
-    '/book/owner@example.com',
-    '/book/owner@example.com/5',
+    '/owner',
+    '/book',
+    '/book/5',
   ])('%s: RU/EN переключают язык страницы', async (path) => {
     stubApi()
     const user = userEvent.setup()
@@ -233,13 +174,11 @@ describe('переключатель языка на каждой страниц
 
     expect(document.documentElement).toHaveAttribute('lang', 'en')
     expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent(
-      path.startsWith('/login')
-        ? en.login.title
-        : path.startsWith('/owner')
-          ? en.owner.title
-          : path === '/book/owner@example.com'
-            ? en.guestCatalog.title
-            : en.guest.title,
+      path === '/owner'
+        ? en.owner.title
+        : path === '/book'
+          ? en.guestCatalog.title
+          : en.guest.title,
     )
   })
 })

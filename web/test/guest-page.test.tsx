@@ -9,7 +9,7 @@ import { GuestPage } from '../src/pages/GuestPage.tsx'
 import { json, stubFetch } from './fetch-stub.ts'
 
 const ru = appCopy.ru.guest
-const owner = 'owner@example.com'
+const owner = { name: 'Анна Смирнова', email: 'anna@example.com' }
 
 // Тестовая зона — Europe/Moscow (+03:00, см. vitest.config.ts): локальные 11:00
 // это 08:00Z. Слоты строим от сегодняшней локальной даты, чтобы не зависеть от
@@ -24,7 +24,6 @@ type Slot = { start: string; end: string; status: 'free' | 'busy' }
 
 const consult = {
   id: 5,
-  ownerEmail: owner,
   name: 'Консультация',
   description: 'Разбор вашей задачи',
   durationMinutes: 30,
@@ -47,7 +46,6 @@ function stubApi(options: { bookingStatus?: number; slots?: Slot[]; typeStatus?:
       return json(201, {
         id: 1,
         eventTypeId: consult.id,
-        ownerEmail: owner,
         start,
         end: start,
         durationMinutes: consult.durationMinutes,
@@ -56,6 +54,7 @@ function stubApi(options: { bookingStatus?: number; slots?: Slot[]; typeStatus?:
         createdAt: start,
       })
     }
+    if (url.endsWith('/api/owner')) return json(200, owner)
     if (url.endsWith('/slots')) return json(200, options.slots ?? ladder)
     if (options.typeStatus === 404) return json(404, { message: 'event type not found' })
     return json(200, consult)
@@ -66,9 +65,9 @@ function renderGuest(eventTypeId = consult.id) {
   return render(
     <MantineProvider>
       <LocaleProvider>
-        <MemoryRouter initialEntries={[`/book/${encodeURIComponent(owner)}/${eventTypeId}`]}>
+        <MemoryRouter initialEntries={[`/book/${eventTypeId}`]}>
           <Routes>
-            <Route path="/book/:email/:eventTypeId" element={<GuestPage />} />
+            <Route path="/book/:eventTypeId" element={<GuestPage />} />
           </Routes>
         </MemoryRouter>
       </LocaleProvider>
@@ -77,6 +76,7 @@ function renderGuest(eventTypeId = consult.id) {
 }
 
 afterEach(() => {
+  vi.useRealTimers()
   vi.unstubAllGlobals()
 })
 
@@ -115,18 +115,47 @@ describe('гостевая страница: запись на выбранны�
     await screen.findByRole('button', { name: /11:00 - 11:30/ })
     expect(
       calls.some((call) =>
-        call.url.endsWith(`/api/owners/${encodeURIComponent(owner)}/event-types/5/slots`),
+        call.url.endsWith('/api/event-types/5/slots'),
       ),
     ).toBe(true)
     // Гость больше не выбирает длительность сам.
     expect(screen.queryByRole('radio')).not.toBeInTheDocument()
   })
 
+  it('показывает, к кому гость записывается — заранее заданного владельца', async () => {
+    stubApi()
+    renderGuest()
+    expect(await screen.findByText(owner.name)).toBeInTheDocument()
+  })
+
+  it('календарь открывает ровно 14 дней, включая сегодня', async () => {
+    // Только Date: 5 октября 09:00 по Москве — окно 5…18 октября целиком в одном месяце.
+    vi.useFakeTimers({ toFake: ['Date'], now: new Date('2026-10-05T06:00:00.000Z') })
+    // По одному свободному слоту на каждый день с 3 по 25 октября — шире окна с обеих сторон.
+    const slots: Slot[] = Array.from({ length: 23 }, (_, index) => {
+      const day = String(3 + index).padStart(2, '0')
+      return {
+        start: `2026-10-${day}T09:00:00.000Z`,
+        end: `2026-10-${day}T09:30:00.000Z`,
+        status: 'free',
+      }
+    })
+    stubApi({ slots })
+    renderGuest()
+
+    const counters = await screen.findAllByText(`1 ${ru.freeCountSuffix}`)
+    const enabledDays = counters
+      .map((counter) => counter.closest('button')!)
+      .filter((day) => !day.disabled && !day.hasAttribute('data-disabled'))
+      .map((day) => Number(day.querySelector('span')!.textContent))
+    expect(enabledDays).toEqual(Array.from({ length: 14 }, (_, index) => 5 + index))
+  })
+
   it('ведёт обратно к каталогу типов', async () => {
     stubApi()
     renderGuest()
     const back = await screen.findByRole('link', { name: ru.backToCatalog })
-    expect(back).toHaveAttribute('href', `/book/${encodeURIComponent(owner)}`)
+    expect(back).toHaveAttribute('href', '/book')
   })
 
   it('несуществующий тип — понятное сообщение', async () => {
@@ -182,27 +211,28 @@ describe('гостевая страница: запись на выбранны�
     expect(calls.some((call) => call.method === 'POST')).toBe(false)
   })
 
-  it('нечисловой id в ссылке — «такого типа нет», без запросов к API', async () => {
+  it('нечисловой id в ссылке — «такого типа нет», без запросов о типе и слотах', async () => {
     const calls = stubApi()
     render(
       <MantineProvider>
         <LocaleProvider>
-          <MemoryRouter initialEntries={[`/book/${encodeURIComponent(owner)}/abc`]}>
+          <MemoryRouter initialEntries={['/book/abc']}>
             <Routes>
-              <Route path="/book/:email/:eventTypeId" element={<GuestPage />} />
+              <Route path="/book/:eventTypeId" element={<GuestPage />} />
             </Routes>
           </MemoryRouter>
         </LocaleProvider>
       </MantineProvider>,
     )
     expect(await screen.findByText(ru.eventTypeNotFound)).toBeInTheDocument()
-    expect(calls).toEqual([])
+    expect(calls.filter((call) => call.url.includes('/event-types'))).toEqual([])
   })
 
   it('409 и неудачное обновление лестницы — прежняя лестница остаётся на экране', async () => {
     let slotRequests = 0
     stubFetch(({ url, method }) => {
       if (method === 'POST') return json(409, { message: 'slot is already booked' })
+      if (url.endsWith('/api/owner')) return json(200, owner)
       if (url.endsWith('/slots')) {
         slotRequests += 1
         return slotRequests === 1 ? json(200, ladder) : json(500, { message: 'boom' })
