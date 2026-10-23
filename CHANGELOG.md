@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.4.0](https://github.com/Pir-4/ai-for-developers-project-386/compare/call-booking-v0.3.0...call-booking-v0.4.0) (2026-10-23)
+
+
+### ⚠ BREAKING CHANGES
+
+* **web:** guest-first landing, no login, 30-minute grid, 14-day calendars
+* **server:** single predefined owner, 30-minute slots, strict 14-day window
+* **contract:** single predefined owner and fixed 30-minute slots
+
+### Features
+
+* **contract:** single predefined owner and fixed 30-minute slots ([49985b8](https://github.com/Pir-4/ai-for-developers-project-386/commit/49985b888f66be7c4692282afe58150ab08d3468))
+* **server:** single predefined owner, 30-minute slots, strict 14-day window ([4c78786](https://github.com/Pir-4/ai-for-developers-project-386/commit/4c787869d991495e22ad0ba71d3fccdee2fd90a4))
+* **web:** guest-first landing, no login, 30-minute grid, 14-day calendars ([7b1866b](https://github.com/Pir-4/ai-for-developers-project-386/commit/7b1866ba07aa5e7b2e44485ee527abaa4c01d5f8))
+
 ## [0.3.0](https://github.com/Pir-4/ai-for-developers-project-386/compare/call-booking-v0.2.0...call-booking-v0.3.0) (2026-10-21)
 
 
