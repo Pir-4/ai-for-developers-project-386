@@ -15,26 +15,25 @@ function invalidStart(message: string): ValidationError {
 }
 
 /**
- * POST /api/owners/:ownerEmail/event-types/:eventTypeId/bookings — бронирует слот
- * типа встречи на календаре владельца. Занятость общая для всех типов: бронь
+ * POST /api/event-types/:eventTypeId/bookings — бронирует слот типа встречи
+ * на календаре владельца. Занятость общая для всех типов: бронь
  * любого типа делает пересекающиеся ячейки других типов занятыми.
  */
 export function createCreateBookingHandler(db: DatabaseSync, clock: () => Date) {
   const loadEventType = createEventTypeLoader(db);
   const loadLadder = createLadderLoader(db);
   const insert = db.prepare(
-    `INSERT INTO bookings (event_type_id, owner_email, start, end, duration_minutes, guest_name, guest_email, created_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+    `INSERT INTO bookings (event_type_id, start, end, duration_minutes, guest_name, guest_email, created_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?)`,
   );
 
   return async (
     request: FastifyRequest<{
-      Params: { ownerEmail: string; eventTypeId: number };
+      Params: { eventTypeId: number };
       Body: CreateBookingBody;
     }>,
     reply: FastifyReply,
   ): Promise<Booking | NotFoundError | ConflictError | ValidationError> => {
-    const { ownerEmail } = request.params;
     const eventTypeId = Number(request.params.eventTypeId);
     const { guestEmail, start } = request.body;
     // "1–100 символов после trim" — контракт не проверяет длину сырой строки
@@ -57,7 +56,7 @@ export function createCreateBookingHandler(db: DatabaseSync, clock: () => Date) 
     try {
       // Тип встречи и лестница читаются здесь же, под той же транзакцией: гость
       // может бронировать только то, что ему реально предлагалось.
-      const eventType = loadEventType(ownerEmail, eventTypeId);
+      const eventType = loadEventType(eventTypeId);
       if (!eventType) {
         db.exec("ROLLBACK");
         reply.code(404);
@@ -65,11 +64,7 @@ export function createCreateBookingHandler(db: DatabaseSync, clock: () => Date) 
       }
       const { durationMinutes } = eventType;
 
-      const { hasAvailability, cells } = loadLadder(
-        ownerEmail,
-        durationMinutes,
-        now.getTime(),
-      );
+      const { hasAvailability, cells } = loadLadder(durationMinutes, now.getTime());
       if (!hasAvailability) {
         db.exec("ROLLBACK");
         reply.code(404);
@@ -95,7 +90,6 @@ export function createCreateBookingHandler(db: DatabaseSync, clock: () => Date) 
       const createdAt = now.toISOString();
       const { lastInsertRowid } = insert.run(
         eventTypeId,
-        ownerEmail,
         bookedStart,
         end,
         durationMinutes,
@@ -109,7 +103,6 @@ export function createCreateBookingHandler(db: DatabaseSync, clock: () => Date) 
       return {
         id: Number(lastInsertRowid),
         eventTypeId,
-        ownerEmail,
         start: bookedStart,
         end,
         durationMinutes,

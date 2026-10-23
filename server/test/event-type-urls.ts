@@ -1,46 +1,38 @@
 import type { FastifyInstance } from "fastify";
 
-// Тесты слотов и броней адресуют лестницу через тип встречи. Чтобы не заводить
-// типы вручную в каждом тесте, тип нужной длительности создаётся по первому
-// обращению и переиспользуется в пределах одного приложения — значит, разные
-// длительности в одном тесте это разные типы встречи одного владельца.
-const created = new WeakMap<FastifyInstance, Map<string, number>>();
+// Тесты слотов и броней адресуют лестницу через тип встречи. Все типы длятся
+// 30 минут, поэтому большинству тестов хватает одного: он создаётся по первому
+// обращению и переиспользуется в пределах одного приложения. Тестам, которым
+// нужно несколько типов (общая занятость), — createEventType.
+const defaults = new WeakMap<FastifyInstance, number>();
 
-export async function eventTypeId(
+export async function createEventType(
   app: FastifyInstance,
-  ownerEmail: string,
-  durationMinutes: number,
+  name = "Встреча",
 ): Promise<number> {
-  const byKey = created.get(app) ?? new Map<string, number>();
-  created.set(app, byKey);
-  const key = `${ownerEmail}|${durationMinutes}`;
-  const known = byKey.get(key);
-  if (known !== undefined) return known;
-
   const response = await app.inject({
     method: "POST",
-    url: `/api/owners/${encodeURIComponent(ownerEmail)}/event-types`,
-    payload: {
-      name: `Встреча ${durationMinutes} мин`,
-      description: "Тестовый тип встречи",
-      durationMinutes,
-    },
+    url: "/api/event-types",
+    payload: { name, description: "Тестовый тип встречи" },
   });
   if (response.statusCode !== 201) {
     throw new Error(`cannot create event type: ${response.statusCode} ${response.body}`);
   }
-  const { id } = response.json() as { id: number };
-  byKey.set(key, id);
+  return (response.json() as { id: number }).id;
+}
+
+export async function eventTypeId(app: FastifyInstance): Promise<number> {
+  const known = defaults.get(app);
+  if (known !== undefined) return known;
+  const id = await createEventType(app);
+  defaults.set(app, id);
   return id;
 }
 
-/** URL-ы лестницы и брони типа встречи заданной длительности у владельца. */
-export function eventTypeUrls(ownerEmail: string) {
-  const base = `/api/owners/${encodeURIComponent(ownerEmail)}/event-types`;
-  return {
-    slotsUrl: async (app: FastifyInstance, durationMinutes: number) =>
-      `${base}/${await eventTypeId(app, ownerEmail, durationMinutes)}/slots`,
-    bookingsUrl: async (app: FastifyInstance, durationMinutes: number) =>
-      `${base}/${await eventTypeId(app, ownerEmail, durationMinutes)}/bookings`,
-  };
-}
+export const slotsUrlOf = (id: number) => `/api/event-types/${id}/slots`;
+export const bookingsUrlOf = (id: number) => `/api/event-types/${id}/bookings`;
+
+/** URL-ы лестницы и брони типа встречи по умолчанию. */
+export const slotsUrl = async (app: FastifyInstance) => slotsUrlOf(await eventTypeId(app));
+export const bookingsUrl = async (app: FastifyInstance) =>
+  bookingsUrlOf(await eventTypeId(app));

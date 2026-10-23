@@ -1,11 +1,15 @@
 import { describe, expect, it } from "vitest";
 import { buildApp } from "../src/app.js";
-import { eventTypeId, eventTypeUrls } from "./event-type-urls.js";
+import {
+  bookingsUrl,
+  bookingsUrlOf,
+  createEventType,
+  eventTypeId,
+  slotsUrl,
+  slotsUrlOf,
+} from "./event-type-urls.js";
 
-const owner = "owner@example.com";
-const enc = encodeURIComponent(owner);
-const availabilityUrl = (date: string) => `/api/owners/${enc}/availability/${date}`;
-const { slotsUrl, bookingsUrl } = eventTypeUrls(owner);
+const availabilityUrl = (date: string) => `/api/availability/${date}`;
 
 const now = new Date("2024-01-10T09:47:00.000Z");
 const day = "2024-01-11";
@@ -24,25 +28,26 @@ async function openMorning(app: Awaited<ReturnType<typeof build>>) {
 }
 
 describe("бронирование слота", () => {
-  it("создаёт бронь и выводит конец из длительности", async () => {
+  it("создаёт 30-минутную бронь", async () => {
     const app = await build();
     await openMorning(app);
 
     const response = await app.inject({
       method: "POST",
-      url: await bookingsUrl(app, 45),
-      payload: { ...guest, start: iso("11:45") },
+      url: await bookingsUrl(app),
+      payload: { ...guest, start: iso("11:30") },
     });
     expect(response.statusCode).toBe(201);
-    expect(response.json()).toMatchObject({
-      ownerEmail: owner,
-      start: iso("11:45"),
-      end: iso("12:30"),
-      durationMinutes: 45,
+    expect(response.json()).toEqual({
+      id: expect.any(Number),
+      eventTypeId: await eventTypeId(app),
+      start: iso("11:30"),
+      end: iso("12:00"),
+      durationMinutes: 30,
       guestName: "Гость",
       guestEmail: "guest@example.com",
+      createdAt: now.toISOString(),
     });
-    expect(response.json().createdAt).toBe(now.toISOString());
 
     await app.close();
   });
@@ -51,7 +56,7 @@ describe("бронирование слота", () => {
     const app = await build();
     const response = await app.inject({
       method: "POST",
-      url: await bookingsUrl(app, 30),
+      url: await bookingsUrl(app),
       payload: { ...guest, start: iso("11:00") },
     });
     expect(response.statusCode).toBe(404);
@@ -62,14 +67,12 @@ describe("бронирование слота", () => {
     const app = await build();
     await openMorning(app);
 
-    // 11:20 не на сетке вовсе; 11:30 — ступенька для 30, но не для 45.
-    for (const [start, durationMinutes] of [
-      [iso("11:20"), 45],
-      [iso("11:30"), 45],
-    ] as const) {
+    // 11:20 не на сетке вовсе; 11:15 — на старой 15-минутной, но не на 30-минутной;
+    // 15:00 — конец интервала, слот туда уже не помещается.
+    for (const start of [iso("11:20"), iso("11:15"), iso("15:00")]) {
       const response = await app.inject({
         method: "POST",
-        url: await bookingsUrl(app, durationMinutes),
+        url: await bookingsUrl(app),
         payload: { ...guest, start },
       });
       expect(response.statusCode).toBe(422);
@@ -82,7 +85,7 @@ describe("бронирование слота", () => {
   it("409, если ячейку уже заняли", async () => {
     const app = await build();
     await openMorning(app);
-    const url = await bookingsUrl(app, 30);
+    const url = await bookingsUrl(app);
     const payload = { ...guest, start: iso("11:00") };
 
     expect((await app.inject({ method: "POST", url, payload })).statusCode).toBe(201);
@@ -96,38 +99,18 @@ describe("бронирование слота", () => {
     await app.close();
   });
 
-  it("409 и для пересекающейся ячейки другой длительности", async () => {
-    const app = await build();
-    await openMorning(app);
-    await app.inject({
-      method: "POST",
-      url: await bookingsUrl(app, 45),
-      payload: { ...guest, start: iso("11:00") },
-    });
-
-    // 11:30–12:00 пересекает 11:00–11:45, хотя это другая лестница.
-    const clash = await app.inject({
-      method: "POST",
-      url: await bookingsUrl(app, 30),
-      payload: { ...guest, start: iso("11:30") },
-    });
-    expect(clash.statusCode).toBe(409);
-
-    await app.close();
-  });
-
   it("касание границ не конфликтует", async () => {
     const app = await build();
     await openMorning(app);
     await app.inject({
       method: "POST",
-      url: await bookingsUrl(app, 30),
+      url: await bookingsUrl(app),
       payload: { ...guest, start: iso("11:00") },
     });
 
     const touching = await app.inject({
       method: "POST",
-      url: await bookingsUrl(app, 30),
+      url: await bookingsUrl(app),
       payload: { ...guest, start: iso("11:30") },
     });
     expect(touching.statusCode).toBe(201);
@@ -141,7 +124,7 @@ describe("бронирование слота", () => {
 
     const response = await app.inject({
       method: "POST",
-      url: await bookingsUrl(app, 30),
+      url: await bookingsUrl(app),
       payload: { ...guest, guestName: "   ", start: iso("11:00") },
     });
     expect(response.statusCode).toBe(422);
@@ -156,7 +139,7 @@ describe("бронирование слота", () => {
 
     const response = await app.inject({
       method: "POST",
-      url: await bookingsUrl(app, 30),
+      url: await bookingsUrl(app),
       payload: { ...guest, guestEmail: "не почта", start: iso("11:00") },
     });
     expect(response.statusCode).toBe(422);
@@ -171,117 +154,66 @@ describe("бронирование слота", () => {
     // 14:00+03:00 — это ступенька 11:00Z.
     const response = await app.inject({
       method: "POST",
-      url: await bookingsUrl(app, 30),
+      url: await bookingsUrl(app),
       payload: { ...guest, start: `${day}T14:00:00+03:00` },
     });
     expect(response.statusCode).toBe(201);
     expect(response.json()).toMatchObject({ start: iso("11:00"), end: iso("11:30") });
 
-    const meetings = (
-      await app.inject({ method: "GET", url: `/api/owners/${enc}/meetings` })
-    ).json();
+    const meetings = (await app.inject({ method: "GET", url: "/api/meetings" })).json();
     expect(meetings[0].start).toBe(iso("11:00"));
 
     await app.close();
   });
 
-  it("404 на неизвестный или чужой тип встречи", async () => {
-    const app = await build();
-    await openMorning(app);
-    const foreignId = await eventTypeId(app, "other@example.com", 30);
-
-    for (const id of [999, foreignId]) {
-      const response = await app.inject({
-        method: "POST",
-        url: `/api/owners/${enc}/event-types/${id}/bookings`,
-        payload: { ...guest, start: iso("11:00") },
-      });
-      expect(response.statusCode).toBe(404);
-    }
-
-    await app.close();
-  });
-
-  it("длительность брони берётся из типа встречи", async () => {
+  it("404 на неизвестный тип встречи", async () => {
     const app = await build();
     await openMorning(app);
 
     const response = await app.inject({
       method: "POST",
-      url: await bookingsUrl(app, 60),
-      payload: { ...guest, start: iso("12:00") },
+      url: bookingsUrlOf(999),
+      payload: { ...guest, start: iso("11:00") },
     });
-    expect(response.statusCode).toBe(201);
-    expect(response.json()).toMatchObject({
-      eventTypeId: await eventTypeId(app, owner, 60),
-      start: iso("12:00"),
-      end: iso("13:00"),
-      durationMinutes: 60,
-    });
+    expect(response.statusCode).toBe(404);
 
     await app.close();
   });
 
   describe("конфликт между разными типами встречи", () => {
-    // Два типа одного владельца — 30 и 45 минут — над одним интервалом 11:00–15:00.
-    it("бронь 30-минутного типа занимает пересекающиеся слоты 45-минутного", async () => {
+    // Два типа над одним интервалом 11:00–15:00: занятость у них общая.
+    it("бронь одного типа занимает тот же слот другого, и бронировать его — 409", async () => {
       const app = await build();
       await openMorning(app);
+      const intro = await createEventType(app, "Знакомство");
+      const consult = await createEventType(app, "Консультация");
 
       const first = await app.inject({
         method: "POST",
-        url: await bookingsUrl(app, 30),
+        url: bookingsUrlOf(intro),
         payload: { ...guest, start: iso("11:00") },
       });
       expect(first.statusCode).toBe(201);
 
-      const ladder45 = (await app.inject({ method: "GET", url: await slotsUrl(app, 45) })).json();
-      expect(ladder45.slice(0, 2)).toEqual([
-        { start: iso("11:00"), end: iso("11:45"), status: "busy" },
-        { start: iso("11:45"), end: iso("12:30"), status: "free" },
+      const ladder = (await app.inject({ method: "GET", url: slotsUrlOf(consult) })).json();
+      expect(ladder.slice(0, 2)).toEqual([
+        { start: iso("11:00"), end: iso("11:30"), status: "busy" },
+        { start: iso("11:30"), end: iso("12:00"), status: "free" },
       ]);
 
       const clash = await app.inject({
         method: "POST",
-        url: await bookingsUrl(app, 45),
+        url: bookingsUrlOf(consult),
         payload: { ...guest, guestName: "Другой", start: iso("11:00") },
       });
       expect(clash.statusCode).toBe(409);
 
       const next = await app.inject({
         method: "POST",
-        url: await bookingsUrl(app, 45),
-        payload: { ...guest, guestName: "Другой", start: iso("11:45") },
-      });
-      expect(next.statusCode).toBe(201);
-
-      await app.close();
-    });
-
-    it("и в обратную сторону: бронь 45-минутного типа даёт 409 для 30-минутного", async () => {
-      const app = await build();
-      await openMorning(app);
-      await app.inject({
-        method: "POST",
-        url: await bookingsUrl(app, 45),
-        payload: { ...guest, start: iso("11:00") },
-      });
-
-      // 11:30–12:00 задевает хвост 11:00–11:45, хотя это другой тип и другая лестница.
-      const clash = await app.inject({
-        method: "POST",
-        url: await bookingsUrl(app, 30),
+        url: bookingsUrlOf(consult),
         payload: { ...guest, guestName: "Другой", start: iso("11:30") },
       });
-      expect(clash.statusCode).toBe(409);
-
-      // 12:00 у 30-минутного типа уже не пересекается — свободно.
-      const after = await app.inject({
-        method: "POST",
-        url: await bookingsUrl(app, 30),
-        payload: { ...guest, guestName: "Другой", start: iso("12:00") },
-      });
-      expect(after.statusCode).toBe(201);
+      expect(next.statusCode).toBe(201);
 
       await app.close();
     });
@@ -292,11 +224,11 @@ describe("бронирование слота", () => {
     await openMorning(app);
     await app.inject({
       method: "POST",
-      url: await bookingsUrl(app, 30),
+      url: await bookingsUrl(app),
       payload: { ...guest, start: iso("11:00") },
     });
 
-    const slots = (await app.inject({ method: "GET", url: await slotsUrl(app, 30) })).json();
+    const slots = (await app.inject({ method: "GET", url: await slotsUrl(app) })).json();
     const free = slots.filter((slot: { status: string }) => slot.status === "free");
     expect(free.some((slot: { start: string }) => slot.start === iso("11:00"))).toBe(false);
 

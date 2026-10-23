@@ -1,4 +1,5 @@
 import type { DatabaseSync } from "node:sqlite";
+import type { Owner } from "../owner.js";
 import { health } from "./health.js";
 import {
   createListAvailabilityHandler,
@@ -12,13 +13,19 @@ import {
 import { createListSlotsHandler } from "./slots.js";
 import { createCreateBookingHandler } from "./bookings.js";
 import { createListMeetingsHandler } from "./meetings.js";
+import { createGetOwnerHandler } from "./owner.js";
 
 // Один хендлер на operationId из контракта (contract/openapi.yaml);
 // fastify-openapi-glue связывает операцию с хендлером по ключу.
 // Хендлерам нужна база — поэтому собираем объект фабрикой.
-export function createServiceHandlers(db: DatabaseSync, clock: () => Date) {
+export function createServiceHandlers(
+  db: DatabaseSync,
+  clock: () => Date,
+  owner: Owner,
+) {
   return {
     health,
+    getOwner: createGetOwnerHandler(owner),
     setAvailability: createSetAvailabilityHandler(db, clock),
     listAvailability: createListAvailabilityHandler(db, clock),
     createEventType: createCreateEventTypeHandler(db),

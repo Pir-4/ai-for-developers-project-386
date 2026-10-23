@@ -1,12 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { buildApp } from "../src/app.js";
-import { eventTypeUrls } from "./event-type-urls.js";
+import { bookingsUrl } from "./event-type-urls.js";
 
-const owner = "owner@example.com";
-const enc = encodeURIComponent(owner);
-const availabilityUrl = (date: string) => `/api/owners/${enc}/availability/${date}`;
-const listUrl = `/api/owners/${enc}/availability`;
-const { bookingsUrl } = eventTypeUrls(owner);
+const availabilityUrl = (date: string) => `/api/availability/${date}`;
+const listUrl = "/api/availability";
 
 const now = new Date("2024-01-10T09:47:00.000Z");
 const day = "2024-01-11";
@@ -127,33 +124,53 @@ describe("доступность владельца", () => {
     await app.close();
   });
 
-  it("422, если граница не на 15-минутной сетке", async () => {
+  it.each(["11:15", "11:07"])(
+    "422, если граница (%s) не на 30-минутной сетке",
+    async (time) => {
+      const app = await build();
+      const response = await app.inject({
+        method: "PUT",
+        url: availabilityUrl(day),
+        payload: { intervals: [{ start: iso(time), end: iso("15:00") }] },
+      });
+      expect(response.statusCode).toBe(422);
+      expect(response.json().errors[0].message).toBe("must lie on the 30-minute grid");
+
+      await app.close();
+    },
+  );
+
+  it("принимает последний день окна — сегодня + 13", async () => {
     const app = await build();
     const response = await app.inject({
       method: "PUT",
-      url: availabilityUrl(day),
-      payload: { intervals: [{ start: iso("11:07"), end: iso("15:00") }] },
+      url: availabilityUrl("2024-01-23"),
+      payload: {
+        intervals: [{ start: "2024-01-23T10:00:00.000Z", end: "2024-01-23T11:00:00.000Z" }],
+      },
     });
-    expect(response.statusCode).toBe(422);
-    expect(response.json().errors[0].message).toBe("must lie on the 15-minute grid");
+    expect(response.statusCode).toBe(200);
 
     await app.close();
   });
 
-  it("422, если дата вне окна бронирования", async () => {
-    const app = await build();
-    const response = await app.inject({
-      method: "PUT",
-      url: availabilityUrl("2024-03-01"),
-      payload: { intervals: [] },
-    });
-    expect(response.statusCode).toBe(422);
-    expect(response.json().errors).toEqual([
-      { path: "date", message: "must be within the booking window" },
-    ]);
+  it.each(["2024-01-24", "2024-01-09", "2024-03-01"])(
+    "422, если дата (%s) вне окна бронирования",
+    async (date) => {
+      const app = await build();
+      const response = await app.inject({
+        method: "PUT",
+        url: availabilityUrl(date),
+        payload: { intervals: [] },
+      });
+      expect(response.statusCode).toBe(422);
+      expect(response.json().errors).toEqual([
+        { path: "date", message: "must be within the booking window" },
+      ]);
 
-    await app.close();
-  });
+      await app.close();
+    },
+  );
 
   it("409 при попытке убрать доступность из-под брони, с перечнем встреч", async () => {
     const app = await build();
@@ -164,7 +181,7 @@ describe("доступность владельца", () => {
     });
     await app.inject({
       method: "POST",
-      url: await bookingsUrl(app, 45),
+      url: await bookingsUrl(app),
       payload: {
         guestName: "Гость",
         guestEmail: "guest@example.com",
@@ -179,7 +196,7 @@ describe("доступность владельца", () => {
     });
     expect(narrowed.statusCode).toBe(409);
     expect(narrowed.json().meetings).toEqual([
-      { start: iso("12:30"), end: iso("13:15"), guestName: "Гость" },
+      { start: iso("12:30"), end: iso("13:00"), guestName: "Гость" },
     ]);
 
     // Отказ ничего не сохранил: день остался прежним.
@@ -198,7 +215,7 @@ describe("доступность владельца", () => {
     });
     await app.inject({
       method: "POST",
-      url: await bookingsUrl(app, 45),
+      url: await bookingsUrl(app),
       payload: {
         guestName: "Гость",
         guestEmail: "guest@example.com",
@@ -212,23 +229,6 @@ describe("доступность владельца", () => {
       payload: { intervals: [{ start: iso("09:00"), end: iso("18:00") }] },
     });
     expect(widened.statusCode).toBe(200);
-
-    await app.close();
-  });
-
-  it("доступность одного владельца не видна другому", async () => {
-    const app = await build();
-    await app.inject({
-      method: "PUT",
-      url: availabilityUrl(day),
-      payload: { intervals: [morning] },
-    });
-
-    const other = await app.inject({
-      method: "GET",
-      url: `/api/owners/${encodeURIComponent("other@example.com")}/availability`,
-    });
-    expect(other.json()).toEqual([]);
 
     await app.close();
   });

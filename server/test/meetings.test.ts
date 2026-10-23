@@ -1,12 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { buildApp } from "../src/app.js";
-import { eventTypeUrls } from "./event-type-urls.js";
+import { bookingsUrl } from "./event-type-urls.js";
 
-const owner = "owner@example.com";
-const enc = encodeURIComponent(owner);
-const availabilityUrl = (date: string) => `/api/owners/${enc}/availability/${date}`;
-const { bookingsUrl } = eventTypeUrls(owner);
-const meetingsUrl = `/api/owners/${enc}/meetings`;
+const availabilityUrl = (date: string) => `/api/availability/${date}`;
+const meetingsUrl = "/api/meetings";
 
 const now = new Date("2024-01-10T09:47:00.000Z");
 const day = "2024-01-11";
@@ -20,7 +17,6 @@ const build = (clock: () => Date = () => now) =>
 async function openAndBook(
   app: Awaited<ReturnType<typeof build>>,
   times: string[],
-  durationMinutes = 30,
 ) {
   await app.inject({
     method: "PUT",
@@ -30,7 +26,7 @@ async function openAndBook(
   for (const time of times) {
     await app.inject({
       method: "POST",
-      url: await bookingsUrl(app, durationMinutes),
+      url: await bookingsUrl(app),
       payload: { ...guest, start: iso(time) },
     });
   }
@@ -47,18 +43,17 @@ describe("будущие встречи владельца", () => {
 
   it("показывает встречу с длительностью и данными гостя", async () => {
     const app = await build();
-    await openAndBook(app, ["11:15"], 45);
+    await openAndBook(app, ["11:30"]);
 
     const meetings = (await app.inject({ method: "GET", url: meetingsUrl })).json();
     expect(meetings).toEqual([
       {
         id: expect.any(Number),
         eventTypeId: expect.any(Number),
-        eventTypeName: "Встреча 45 мин",
-        ownerEmail: owner,
-        start: iso("11:15"),
+        eventTypeName: "Встреча",
+        start: iso("11:30"),
         end: iso("12:00"),
-        durationMinutes: 45,
+        durationMinutes: 30,
         guestName: "Гость",
         guestEmail: "guest@example.com",
       },
@@ -95,17 +90,5 @@ describe("будущие встречи владельца", () => {
       "16:00",
     ]);
     await later.close();
-  });
-
-  it("встречи одного владельца не видны другому", async () => {
-    const app = await build();
-    await openAndBook(app, ["11:00"]);
-
-    const other = await app.inject({
-      method: "GET",
-      url: `/api/owners/${encodeURIComponent("other@example.com")}/meetings`,
-    });
-    expect(other.json()).toEqual([]);
-    await app.close();
   });
 });

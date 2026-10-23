@@ -1,6 +1,7 @@
 import type { DatabaseSync } from "node:sqlite";
 import type { FastifyReply, FastifyRequest } from "fastify";
 import type { components } from "../generated/schema.js";
+import { SLOT_MINUTES } from "./slot-ladder.js";
 
 type EventType = components["schemas"]["EventType"];
 type CreateEventTypeBody = components["schemas"]["CreateEventTypeBody"];
@@ -10,7 +11,6 @@ type ValidationError = components["schemas"]["ValidationError"];
 // snake_case колонки таблицы → camelCase модель контракта.
 type EventTypeRow = {
   id: number;
-  owner_email: string;
   name: string;
   description: string;
   duration_minutes: number;
@@ -19,7 +19,6 @@ type EventTypeRow = {
 function toEventType(row: EventTypeRow): EventType {
   return {
     id: row.id,
-    ownerEmail: row.owner_email,
     name: row.name,
     description: row.description,
     durationMinutes: row.duration_minutes,
@@ -27,35 +26,29 @@ function toEventType(row: EventTypeRow): EventType {
 }
 
 /**
- * Тип встречи владельца по id — или `undefined`, если такого нет у этого
- * владельца (чужой id ведёт себя так же, как несуществующий).
+ * Тип встречи по id — или `undefined`, если такого нет.
  */
 export function createEventTypeLoader(db: DatabaseSync) {
   const selectOne = db.prepare(
-    `SELECT id, owner_email, name, description, duration_minutes
-     FROM event_types WHERE owner_email = ? AND id = ?`,
+    "SELECT id, name, description, duration_minutes FROM event_types WHERE id = ?",
   );
-  return (ownerEmail: string, id: number): EventType | undefined => {
-    const row = selectOne.get(ownerEmail, id) as EventTypeRow | undefined;
+  return (id: number): EventType | undefined => {
+    const row = selectOne.get(id) as EventTypeRow | undefined;
     return row && toEventType(row);
   };
 }
 
-/** POST /api/owners/:ownerEmail/event-types — 201 с созданным типом встречи. */
+/** POST /api/event-types — 201 с созданным типом встречи (всегда 30 минут). */
 export function createCreateEventTypeHandler(db: DatabaseSync) {
   const insert = db.prepare(
-    "INSERT INTO event_types (owner_email, name, description, duration_minutes) VALUES (?, ?, ?, ?)",
+    "INSERT INTO event_types (name, description, duration_minutes) VALUES (?, ?, ?)",
   );
 
   return async (
-    request: FastifyRequest<{
-      Params: { ownerEmail: string };
-      Body: CreateEventTypeBody;
-    }>,
+    request: FastifyRequest<{ Body: CreateEventTypeBody }>,
     reply: FastifyReply,
   ): Promise<EventType | ValidationError> => {
-    const { ownerEmail } = request.params;
-    const { durationMinutes } = request.body;
+    const durationMinutes = SLOT_MINUTES;
     // Контракт проверяет длину сырой строки, но Ajv не умеет сначала обрезать
     // пробелы: "   " прошло бы minLength(1). Поэтому границы — ещё раз здесь, после trim.
     const name = request.body.name.trim();
@@ -71,36 +64,32 @@ export function createCreateEventTypeHandler(db: DatabaseSync) {
       reply.code(422);
       return { message: "invalid event type", errors };
     }
-    const { lastInsertRowid } = insert.run(ownerEmail, name, description, durationMinutes);
+    const { lastInsertRowid } = insert.run(name, description, durationMinutes);
 
     reply.code(201);
-    return { id: Number(lastInsertRowid), ownerEmail, name, description, durationMinutes };
+    return { id: Number(lastInsertRowid), name, description, durationMinutes };
   };
 }
 
-/** GET /api/owners/:ownerEmail/event-types — типы встречи владельца, старые первыми. */
+/** GET /api/event-types — типы встречи, старые первыми. */
 export function createListEventTypesHandler(db: DatabaseSync) {
   const selectAll = db.prepare(
-    `SELECT id, owner_email, name, description, duration_minutes
-     FROM event_types WHERE owner_email = ? ORDER BY id`,
+    "SELECT id, name, description, duration_minutes FROM event_types ORDER BY id",
   );
 
-  return async (
-    request: FastifyRequest<{ Params: { ownerEmail: string } }>,
-  ): Promise<EventType[]> =>
-    (selectAll.all(request.params.ownerEmail) as EventTypeRow[]).map(toEventType);
+  return async (): Promise<EventType[]> =>
+    (selectAll.all() as EventTypeRow[]).map(toEventType);
 }
 
-/** GET /api/owners/:ownerEmail/event-types/:eventTypeId — один тип встречи или 404. */
+/** GET /api/event-types/:eventTypeId — один тип встречи или 404. */
 export function createGetEventTypeHandler(db: DatabaseSync) {
   const loadEventType = createEventTypeLoader(db);
 
   return async (
-    request: FastifyRequest<{ Params: { ownerEmail: string; eventTypeId: number } }>,
+    request: FastifyRequest<{ Params: { eventTypeId: number } }>,
     reply: FastifyReply,
   ): Promise<EventType | NotFoundError> => {
-    const { ownerEmail, eventTypeId } = request.params;
-    const eventType = loadEventType(ownerEmail, Number(eventTypeId));
+    const eventType = loadEventType(Number(request.params.eventTypeId));
     if (!eventType) {
       reply.code(404);
       return { message: "event type not found" };

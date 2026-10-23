@@ -20,7 +20,7 @@ describe("SPA fallback", () => {
   describe.skipIf(!existsSync(webDist))("web/dist собран", () => {
     it("клиентские роуты отдают index.html", async () => {
       const app = await buildApp({ dbPath: ":memory:" });
-      for (const url of ["/login", "/owner", "/owner/a@b.co", "/book/a@b.co/1"]) {
+      for (const url of ["/owner", "/book", "/book/1"]) {
         const res = await app.inject({ method: "GET", url });
         expect(res.statusCode).toBe(200);
         expect(res.headers["content-type"]).toContain("text/html");
