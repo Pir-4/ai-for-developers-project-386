@@ -43,4 +43,5 @@ today. The server still stores no zone, so it anchors the window to UTC dates: a
 accepted only for today … today + 13 (UTC), and no slot starting on or after the start of
 today + 14 (UTC) is offered. The browsers enable the same 14 local days. Near midnight, an owner
 far from UTC may find their local edge day rejected. We accept that edge rather than store a zone
-(`docs/specs/single-owner.md`).
+(`docs/specs/single-owner.md`). The grid fixes where slots start, not how long they last: each
+event type keeps its own owner-chosen duration (30–240 minutes in steps of 30).

@@ -1,6 +1,6 @@
 # Call Booking
 
-A simplified Cal.com: a single predefined owner defines event types, declares availability on their calendar and shares a link; guests pick an event type, then a date and a free 30-minute slot, and book it without accounts.
+A simplified Cal.com: a single predefined owner defines event types, declares availability on their calendar and shares a link; guests pick an event type, then a date and a free slot of that type's length, and book it without accounts.
 
 ## Language
 
@@ -13,7 +13,7 @@ An anonymous visitor who arrives via an owner's link and books a slot, identifie
 _Avoid_: user, customer, invitee
 
 **Event type**:
-A kind of bookable meeting the owner defines: a name and a description. Every event type lasts 30 minutes — the owner does not choose a duration. A guest always books a slot of a specific event type.
+A kind of bookable meeting the owner defines: a name, a description and a duration the owner chooses — a multiple of 30 minutes, from 30 to 240 (the form offers 30, 60, 90 and 120). A guest always books a slot of a specific event type.
 _Avoid_: service, product, meeting kind
 
 **Availability**:
@@ -25,11 +25,11 @@ One continuous stretch of an owner's availability on one date, its bounds on the
 _Avoid_: time range, window, block
 
 **Slot ladder**:
-The sequence of candidate slots produced for one availability interval: a 30-minute cell starting at every step of the 30-minute grid from the interval's start, each cell fully inside the interval; a ladder never spans two intervals.
+The sequence of candidate slots produced for one availability interval: a cell of the event type's duration starting at every step of the 30-minute grid from the interval's start (a 60-minute type over 10:00–12:00 gives 10:00, 10:30, 11:00), each cell fully inside the interval; a ladder never spans two intervals.
 _Avoid_: schedule, timetable
 
 **Slot**:
-One rung of a slot ladder: a 30-minute candidate meeting starting on `:00` or `:30`, carrying a status of free or busy — busy when it overlaps any booking, whatever its event type.
+One rung of a slot ladder: a candidate meeting of the event type's duration, starting on `:00` or `:30`, carrying a status of free or busy — busy when it overlaps any booking, whatever its event type.
 _Avoid_: time slot, availability
 
 **Booking**:
