@@ -61,7 +61,7 @@ export type Booking = {
      */
     end: string;
     /**
-     * Meeting length in minutes (always 30), taken from the event type at booking time.
+     * Meeting length in minutes, taken from the event type at booking time.
      */
     durationMinutes: number;
     /**
@@ -118,6 +118,11 @@ export type CreateEventTypeBody = {
      * What the meeting is about, shown to the guest.
      */
     description: string;
+    /**
+     * Meeting length in minutes: a multiple of 30, from 30 to 240. Slots of any length
+     * start on the 30-minute grid, so a 60-minute meeting may start at 10:00 or 10:30.
+     */
+    durationMinutes: number;
 };
 
 /**
@@ -136,7 +141,7 @@ export type DayAvailability = {
 };
 
 /**
- * A kind of bookable meeting defined by the owner: name and description; always 30 minutes.
+ * A kind of bookable meeting defined by the owner: name, description and duration.
  */
 export type EventType = {
     /**
@@ -152,7 +157,7 @@ export type EventType = {
      */
     description: string;
     /**
-     * Meeting length in minutes — always 30, the length of every slot.
+     * Meeting length in minutes, chosen by the owner — every slot of this type is exactly this long.
      */
     durationMinutes: number;
 };
@@ -273,7 +278,7 @@ export type SetAvailabilityBody = {
 };
 
 /**
- * One rung of the slot ladder: a candidate 30-minute meeting.
+ * One rung of the slot ladder: a candidate meeting of the event type's duration.
  */
 export type Slot = {
     /**

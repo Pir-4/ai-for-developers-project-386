@@ -105,7 +105,7 @@ export interface paths {
          * @description The event type's slot ladder for the whole booking window, ordered by start.
          *
          *     Cells start every 30 minutes from the start of each availability interval, each
-         *     exactly the event type's duration long (30 minutes) and fully inside its
+         *     exactly the event type's duration long and fully inside its
          *     interval. Cells that have already started, and cells starting after the last day
          *     of the booking window (today + 13, UTC), are omitted entirely. A cell is busy
          *     when it overlaps any booking of the owner, whatever its event type. The response
@@ -221,7 +221,7 @@ export interface components {
             end: string;
             /**
              * Format: int32
-             * @description Meeting length in minutes (always 30), taken from the event type at booking time.
+             * @description Meeting length in minutes, taken from the event type at booking time.
              */
             durationMinutes: number;
             /** @description The guest's name. */
@@ -257,6 +257,12 @@ export interface components {
             name: string;
             /** @description What the meeting is about, shown to the guest. */
             description: string;
+            /**
+             * Format: int32
+             * @description Meeting length in minutes: a multiple of 30, from 30 to 240. Slots of any length
+             *     start on the 30-minute grid, so a 60-minute meeting may start at 10:00 or 10:30.
+             */
+            durationMinutes: number;
         };
         /** @description The intervals an owner has declared for one date. An empty list closes the day. */
         DayAvailability: {
@@ -269,7 +275,7 @@ export interface components {
             /** @description The declared intervals, ordered by start. */
             intervals: components["schemas"]["Interval"][];
         };
-        /** @description A kind of bookable meeting defined by the owner: name and description; always 30 minutes. */
+        /** @description A kind of bookable meeting defined by the owner: name, description and duration. */
         EventType: {
             /**
              * Format: int32
@@ -282,7 +288,7 @@ export interface components {
             description: string;
             /**
              * Format: int32
-             * @description Meeting length in minutes — always 30, the length of every slot.
+             * @description Meeting length in minutes, chosen by the owner — every slot of this type is exactly this long.
              */
             durationMinutes: number;
         };
@@ -372,7 +378,7 @@ export interface components {
             /** @description The full interval set for the date; an empty list closes the day. */
             intervals: components["schemas"]["Interval"][];
         };
-        /** @description One rung of the slot ladder: a candidate 30-minute meeting. */
+        /** @description One rung of the slot ladder: a candidate meeting of the event type's duration. */
         Slot: {
             /**
              * Format: date-time

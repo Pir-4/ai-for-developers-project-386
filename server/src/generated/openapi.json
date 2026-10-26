@@ -258,7 +258,7 @@
     "/event-types/{eventTypeId}/slots": {
       "get": {
         "operationId": "listSlots",
-        "description": "The event type's slot ladder for the whole booking window, ordered by start.\n\nCells start every 30 minutes from the start of each availability interval, each\nexactly the event type's duration long (30 minutes) and fully inside its\ninterval. Cells that have already started, and cells starting after the last day\nof the booking window (today + 13, UTC), are omitted entirely. A cell is busy\nwhen it overlaps any booking of the owner, whatever its event type. The response\nis deliberately flat: the guest's browser groups it into the guest's own local dates.",
+        "description": "The event type's slot ladder for the whole booking window, ordered by start.\n\nCells start every 30 minutes from the start of each availability interval, each\nexactly the event type's duration long and fully inside its\ninterval. Cells that have already started, and cells starting after the last day\nof the booking window (today + 13, UTC), are omitted entirely. A cell is busy\nwhen it overlaps any booking of the owner, whatever its event type. The response\nis deliberately flat: the guest's browser groups it into the guest's own local dates.",
         "parameters": [
           {
             "name": "eventTypeId",
@@ -442,7 +442,7 @@
           "durationMinutes": {
             "type": "integer",
             "format": "int32",
-            "description": "Meeting length in minutes (always 30), taken from the event type at booking time."
+            "description": "Meeting length in minutes, taken from the event type at booking time."
           },
           "guestName": {
             "type": "string",
@@ -502,7 +502,8 @@
         "type": "object",
         "required": [
           "name",
-          "description"
+          "description",
+          "durationMinutes"
         ],
         "properties": {
           "name": {
@@ -516,6 +517,14 @@
             "minLength": 1,
             "maxLength": 500,
             "description": "What the meeting is about, shown to the guest."
+          },
+          "durationMinutes": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 30,
+            "maximum": 240,
+            "multipleOf": 30,
+            "description": "Meeting length in minutes: a multiple of 30, from 30 to 240. Slots of any length\nstart on the 30-minute grid, so a 60-minute meeting may start at 10:00 or 10:30."
           }
         },
         "description": "Body for creating an event type."
@@ -567,10 +576,10 @@
           "durationMinutes": {
             "type": "integer",
             "format": "int32",
-            "description": "Meeting length in minutes — always 30, the length of every slot."
+            "description": "Meeting length in minutes, chosen by the owner — every slot of this type is exactly this long."
           }
         },
-        "description": "A kind of bookable meeting defined by the owner: name and description; always 30 minutes."
+        "description": "A kind of bookable meeting defined by the owner: name, description and duration."
       },
       "FieldError": {
         "type": "object",
@@ -753,7 +762,7 @@
             "description": "Whether it is still bookable."
           }
         },
-        "description": "One rung of the slot ladder: a candidate 30-minute meeting."
+        "description": "One rung of the slot ladder: a candidate meeting of the event type's duration."
       },
       "SlotStatus": {
         "type": "string",
