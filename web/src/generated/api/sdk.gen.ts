@@ -77,7 +77,7 @@ export const createBooking = <ThrowOnError extends boolean = false>(options: Opt
  * The event type's slot ladder for the whole booking window, ordered by start.
  *
  * Cells start every 30 minutes from the start of each availability interval, each
- * exactly the event type's duration long (30 minutes) and fully inside its
+ * exactly the event type's duration long and fully inside its
  * interval. Cells that have already started, and cells starting after the last day
  * of the booking window (today + 13, UTC), are omitted entirely. A cell is busy
  * when it overlaps any booking of the owner, whatever its event type. The response

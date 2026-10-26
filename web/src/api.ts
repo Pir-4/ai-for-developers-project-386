@@ -27,8 +27,8 @@ export type {
   ValidationError,
 } from './generated/api/index.ts'
 
-/** The length of every slot and every event type, in minutes. */
-export const SLOT_MINUTES = 30
+/** The durations the owner may pick for an event type, in the order they are offered. */
+export const EVENT_TYPE_DURATIONS = [30, 60, 90, 120]
 
 /** 422 from the API — carries per-field errors (path + message). */
 export class ApiValidationError extends Error {
@@ -118,7 +118,7 @@ export function getEventType(eventTypeId: number) {
   return unwrap(sdk.getEventType({ path: { eventTypeId } }))
 }
 
-/** Creates a 30-minute event type; throws ApiValidationError (422). */
+/** Creates an event type; throws ApiValidationError (422). */
 export function createEventType(body: CreateEventTypeBody) {
   return unwrap(sdk.createEventType({ body }))
 }

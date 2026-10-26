@@ -6,10 +6,11 @@ const eventTypesUrl = "/api/event-types";
 const validBody = {
   name: "Знакомство",
   description: "Первый созвон: знакомимся и обсуждаем идеи",
+  durationMinutes: 30,
 };
 
 describe("POST /api/event-types", () => {
-  it("создаёт тип встречи и отдаёт 201 с серверным id и длительностью 30 минут", async () => {
+  it("создаёт тип встречи и отдаёт 201 с серверным id и выбранной длительностью", async () => {
     const app = await buildApp({ dbPath: ":memory:" });
     const res = await app.inject({
       method: "POST",
@@ -47,16 +48,18 @@ describe("POST /api/event-types", () => {
     await app.close();
   });
 
-  it("длительность из тела запроса игнорируется: все встречи по 30 минут", async () => {
+  it.each([60, 90, 120, 240])("владелец выбирает длительность %i минут", async (minutes) => {
     const app = await buildApp({ dbPath: ":memory:" });
     const res = await app.inject({
       method: "POST",
       url: eventTypesUrl,
-      payload: { ...validBody, durationMinutes: 90 },
+      payload: { ...validBody, durationMinutes: minutes },
     });
 
     expect(res.statusCode).toBe(201);
-    expect(res.json().durationMinutes).toBe(30);
+    expect(res.json().durationMinutes).toBe(minutes);
+    const list = await app.inject({ method: "GET", url: eventTypesUrl });
+    expect(list.json()[0].durationMinutes).toBe(minutes);
 
     await app.close();
   });
@@ -89,8 +92,28 @@ describe("POST /api/event-types", () => {
     },
     {
       what: "нет поля description",
-      payload: { name: validBody.name },
+      payload: { name: validBody.name, durationMinutes: 30 },
       path: "",
+    },
+    {
+      what: "нет поля durationMinutes",
+      payload: { name: validBody.name, description: validBody.description },
+      path: "",
+    },
+    {
+      what: "длительность не кратна 30",
+      payload: { ...validBody, durationMinutes: 45 },
+      path: "durationMinutes",
+    },
+    {
+      what: "длительность короче 30 минут",
+      payload: { ...validBody, durationMinutes: 0 },
+      path: "durationMinutes",
+    },
+    {
+      what: "длительность длиннее 240 минут",
+      payload: { ...validBody, durationMinutes: 270 },
+      path: "durationMinutes",
     },
   ])("отвечает 422, если $what", async ({ payload, path }) => {
     const app = await buildApp({ dbPath: ":memory:" });
@@ -123,7 +146,7 @@ describe("обрезка пробелов при создании типа", () 
     const res = await app.inject({
       method: "POST",
       url: eventTypesUrl,
-      payload: { name: "  Знакомство ", description: " Первый созвон  " },
+      payload: { name: "  Знакомство ", description: " Первый созвон  ", durationMinutes: 30 },
     });
     expect(res.statusCode).toBe(201);
     expect(res.json()).toMatchObject({ name: "Знакомство", description: "Первый созвон" });

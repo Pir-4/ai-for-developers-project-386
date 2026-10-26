@@ -1,19 +1,20 @@
 import type { FastifyInstance } from "fastify";
 
-// Тесты слотов и броней адресуют лестницу через тип встречи. Все типы длятся
-// 30 минут, поэтому большинству тестов хватает одного: он создаётся по первому
+// Тесты слотов и броней адресуют лестницу через тип встречи. Большинству тестов
+// хватает одного 30-минутного типа: он создаётся по первому
 // обращению и переиспользуется в пределах одного приложения. Тестам, которым
-// нужно несколько типов (общая занятость), — createEventType.
+// нужно несколько типов или другая длительность (общая занятость), — createEventType.
 const defaults = new WeakMap<FastifyInstance, number>();
 
 export async function createEventType(
   app: FastifyInstance,
   name = "Встреча",
+  durationMinutes = 30,
 ): Promise<number> {
   const response = await app.inject({
     method: "POST",
     url: "/api/event-types",
-    payload: { name, description: "Тестовый тип встречи" },
+    payload: { name, description: "Тестовый тип встречи", durationMinutes },
   });
   if (response.statusCode !== 201) {
     throw new Error(`cannot create event type: ${response.statusCode} ${response.body}`);

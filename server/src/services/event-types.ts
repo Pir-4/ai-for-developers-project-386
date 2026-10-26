@@ -1,7 +1,6 @@
 import type { DatabaseSync } from "node:sqlite";
 import type { FastifyReply, FastifyRequest } from "fastify";
 import type { components } from "../generated/schema.js";
-import { SLOT_MINUTES } from "./slot-ladder.js";
 
 type EventType = components["schemas"]["EventType"];
 type CreateEventTypeBody = components["schemas"]["CreateEventTypeBody"];
@@ -38,7 +37,7 @@ export function createEventTypeLoader(db: DatabaseSync) {
   };
 }
 
-/** POST /api/event-types — 201 с созданным типом встречи (всегда 30 минут). */
+/** POST /api/event-types — 201 с созданным типом встречи и выбранной владельцем длительностью. */
 export function createCreateEventTypeHandler(db: DatabaseSync) {
   const insert = db.prepare(
     "INSERT INTO event_types (name, description, duration_minutes) VALUES (?, ?, ?)",
@@ -48,7 +47,8 @@ export function createCreateEventTypeHandler(db: DatabaseSync) {
     request: FastifyRequest<{ Body: CreateEventTypeBody }>,
     reply: FastifyReply,
   ): Promise<EventType | ValidationError> => {
-    const durationMinutes = SLOT_MINUTES;
+    // Кратность 30 и границы 30–240 проверяет контракт.
+    const { durationMinutes } = request.body;
     // Контракт проверяет длину сырой строки, но Ajv не умеет сначала обрезать
     // пробелы: "   " прошло бы minLength(1). Поэтому границы — ещё раз здесь, после trim.
     const name = request.body.name.trim();

@@ -8,7 +8,7 @@ type Slot = components["schemas"]["Slot"];
 type NotFoundError = components["schemas"]["NotFoundError"];
 
 /**
- * GET /api/event-types/:eventTypeId/slots — лестница 30-минутных слотов
+ * GET /api/event-types/:eventTypeId/slots — лестница слотов длительностью типа встречи
  * за всё окно, плоским списком: группировку по датам
  * делает браузер гостя в своём часовом поясе (см. issue #39).
  */

@@ -149,7 +149,7 @@ op setAvailability(
 @get
 op listAvailability(): DayAvailability[];
 
-/** A kind of bookable meeting defined by the owner: name and description; always 30 minutes. */
+/** A kind of bookable meeting defined by the owner: name, description and duration. */
 model EventType {
   /** Server-assigned identifier. */
   id: int32;
@@ -157,7 +157,7 @@ model EventType {
   name: string;
   /** What the meeting is about, shown to the guest. */
   description: string;
-  /** Meeting length in minutes — always 30, the length of every slot. */
+  /** Meeting length in minutes, chosen by the owner — every slot of this type is exactly this long. */
   durationMinutes: int32;
 }
 
@@ -171,6 +171,14 @@ model CreateEventTypeBody {
   @minLength(1)
   @maxLength(500)
   description: string;
+  /**
+   * Meeting length in minutes: a multiple of 30, from 30 to 240. Slots of any length
+   * start on the 30-minute grid, so a 60-minute meeting may start at 10:00 or 10:30.
+   */
+  @multipleOf(30)
+  @minValue(30)
+  @maxValue(240)
+  durationMinutes: int32;
 }
 
 /** 201 — the created event type. */
@@ -202,7 +210,7 @@ union SlotStatus {
   busy: "busy",
 }
 
-/** One rung of the slot ladder: a candidate 30-minute meeting. */
+/** One rung of the slot ladder: a candidate meeting of the event type's duration. */
 model Slot {
   /** Start of the slot, UTC ISO 8601. */
   start: utcDateTime;
@@ -216,7 +224,7 @@ model Slot {
  * The event type's slot ladder for the whole booking window, ordered by start.
  *
  * Cells start every 30 minutes from the start of each availability interval, each
- * exactly the event type's duration long (30 minutes) and fully inside its
+ * exactly the event type's duration long and fully inside its
  * interval. Cells that have already started, and cells starting after the last day
  * of the booking window (today + 13, UTC), are omitted entirely. A cell is busy
  * when it overlaps any booking of the owner, whatever its event type. The response
@@ -236,7 +244,7 @@ model Booking {
   start: utcDateTime;
   /** End of the booked interval, UTC ISO 8601 (`start` + `durationMinutes`). */
   end: utcDateTime;
-  /** Meeting length in minutes (always 30), taken from the event type at booking time. */
+  /** Meeting length in minutes, taken from the event type at booking time. */
   durationMinutes: int32;
   /** The guest's name. */
   guestName: string;

@@ -52,6 +52,26 @@ describe("бронирование слота", () => {
     await app.close();
   });
 
+  it("бронь часового типа длится час", async () => {
+    const app = await build();
+    await openMorning(app);
+    const id = await createEventType(app, "Консультация", 60);
+
+    const response = await app.inject({
+      method: "POST",
+      url: bookingsUrlOf(id),
+      payload: { ...guest, start: iso("11:30") },
+    });
+    expect(response.statusCode).toBe(201);
+    expect(response.json()).toMatchObject({
+      start: iso("11:30"),
+      end: iso("12:30"),
+      durationMinutes: 60,
+    });
+
+    await app.close();
+  });
+
   it("404, если владелец не открыл ни одного дня", async () => {
     const app = await build();
     const response = await app.inject({
@@ -214,6 +234,34 @@ describe("бронирование слота", () => {
         payload: { ...guest, guestName: "Другой", start: iso("11:30") },
       });
       expect(next.statusCode).toBe(201);
+
+      await app.close();
+    });
+
+    it("короткая бронь занимает обе часовые ячейки, которые её задевают", async () => {
+      const app = await build();
+      await openMorning(app);
+      const intro = await createEventType(app, "Знакомство", 30);
+      const consult = await createEventType(app, "Консультация", 60);
+
+      await app.inject({
+        method: "POST",
+        url: bookingsUrlOf(intro),
+        payload: { ...guest, start: iso("12:00") },
+      });
+
+      const ladder = (await app.inject({ method: "GET", url: slotsUrlOf(consult) })).json();
+      const busy = ladder
+        .filter((slot: { status: string }) => slot.status === "busy")
+        .map((slot: { start: string }) => slot.start);
+      expect(busy).toEqual([iso("11:30"), iso("12:00")]);
+
+      const clash = await app.inject({
+        method: "POST",
+        url: bookingsUrlOf(consult),
+        payload: { ...guest, guestName: "Другой", start: iso("11:30") },
+      });
+      expect(clash.statusCode).toBe(409);
 
       await app.close();
     });

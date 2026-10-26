@@ -39,7 +39,7 @@ export const landingCopy: Record<Locale, LandingText> = {
           title: 'Выберите тип встречи',
           body:
             'Откройте страницу записи и выберите, о чём хотите поговорить, — ' +
-            'каждая встреча длится 30 минут.',
+            'длительность у каждого типа своя, начало — каждые полчаса.',
         },
         {
           title: 'Выберите дату и время',
@@ -110,7 +110,7 @@ export const landingCopy: Record<Locale, LandingText> = {
           title: 'Pick a meeting type',
           body:
             'Open the booking page and choose what you want to talk about — ' +
-            'every meeting is 30 minutes.',
+            'each type has its own length, starting every half hour.',
         },
         {
           title: 'Pick a date and time',

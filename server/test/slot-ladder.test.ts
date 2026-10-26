@@ -4,7 +4,6 @@
 import { describe, expect, it } from "vitest";
 import {
   GRID_STEP_MS,
-  SLOT_MINUTES,
   buildLadder,
   dateKeyInWindow,
   hasSelfOverlap,
@@ -30,16 +29,15 @@ const ladder = (options: {
 }) =>
   buildLadder({
     intervals: options.intervals,
-    durationMinutes: SLOT_MINUTES,
+    durationMinutes: 30,
     now: options.now ?? before,
     until: options.until ?? farAway,
     bookings: options.bookings ?? [],
   });
 
 describe("buildLadder", () => {
-  it("сетка 30 минут, слоты по 30 минут", () => {
+  it("сетка 30 минут", () => {
     expect(GRID_STEP_MS).toBe(30 * 60 * 1000);
-    expect(SLOT_MINUTES).toBe(30);
   });
 
   it("начинает слот на каждом шаге сетки от начала интервала", () => {

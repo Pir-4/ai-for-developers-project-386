@@ -3,7 +3,7 @@
 ## Project
 
 "Call booking" — a Hexlet learning project (ai-for-developers program): a simplified Cal.com.
-A single predefined owner creates event types (name, description; every meeting is 30 minutes) and declares availability on their calendar; a guest picks an event type, then a date and a free 30-minute slot, and books it; the owner views the list of upcoming meetings.
+A single predefined owner creates event types (name, description, duration of 30–240 minutes in steps of 30) and declares availability on their calendar; a guest picks an event type, then a date and a free slot of that type's length, and books it; the owner views the list of upcoming meetings.
 
 Deliberately **out of scope** (do not add): authentication, personal accounts, external calendar integrations.
 Behavior reference — video in README: https://files.hexlet.app/a/2ipc5m
@@ -44,8 +44,9 @@ Behavior reference — video in README: https://files.hexlet.app/a/2ipc5m
 - Owner — exactly one, predefined in the server config (`OWNER_NAME` / `OWNER_EMAIL`, demo defaults in
   `server/src/owner.ts`; `buildApp({ owner })` in tests), served by `GET /api/owner`. No `ownerEmail` anywhere in
   the API or the database.
-- Time — UTC ISO 8601 strings only; interval bounds lie on the 30-minute grid, and every slot (and every event
-  type) is 30 minutes, starting on `:00`/`:30`. The booking window is exactly 14 days counting today
+- Time — UTC ISO 8601 strings only; interval bounds lie on the 30-minute grid, and every slot starts on
+  `:00`/`:30`; a slot lasts its event type's duration (owner-chosen, 30–240 in steps of 30), so a 60-minute
+  meeting may start at 10:00 or 10:30. The booking window is exactly 14 days counting today
   (UTC dates today … today + 13). A booking blocks overlapping slots of every event type. The owner's browser converts the local wall time it displays to UTC; the server
   stores and returns UTC instants verbatim, performing no timezone expansion and storing no IANA zone
   (see `docs/research/local-time-to-utc.md`).

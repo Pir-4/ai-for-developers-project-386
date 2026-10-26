@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { buildApp } from "../src/app.js";
-import { bookingsUrl, slotsUrl, slotsUrlOf } from "./event-type-urls.js";
+import { bookingsUrl, createEventType, slotsUrl, slotsUrlOf } from "./event-type-urls.js";
 
 const availabilityUrl = (date: string) => `/api/availability/${date}`;
 
@@ -57,6 +57,20 @@ describe("лестница слотов для гостя", () => {
       { start: iso("10:30"), end: iso("11:00"), status: "free" },
       { start: iso("11:00"), end: iso("11:30"), status: "free" },
       { start: iso("11:30"), end: iso("12:00"), status: "free" },
+    ]);
+    await app.close();
+  });
+
+  it("часовой тип: начала по 30-минутной сетке, каждый слот — час", async () => {
+    const app = await build();
+    await openDay(app, [{ start: iso("10:00"), end: iso("12:00") }]);
+    const id = await createEventType(app, "Консультация", 60);
+
+    const slots = (await app.inject({ method: "GET", url: slotsUrlOf(id) })).json();
+    expect(slots).toEqual([
+      { start: iso("10:00"), end: iso("11:00"), status: "free" },
+      { start: iso("10:30"), end: iso("11:30"), status: "free" },
+      { start: iso("11:00"), end: iso("12:00"), status: "free" },
     ]);
     await app.close();
   });
