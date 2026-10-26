@@ -19,7 +19,7 @@ import { DatePicker } from '@mantine/dates'
 import {
   ApiAvailabilityConflictError,
   ApiValidationError,
-  SLOT_MINUTES,
+  EVENT_TYPE_DURATIONS,
   createEventType,
   listAvailability,
   listEventTypes,
@@ -91,6 +91,7 @@ export function OwnerPage() {
   const [eventTypesFailed, setEventTypesFailed] = useState(false)
   const [typeName, setTypeName] = useState('')
   const [typeDescription, setTypeDescription] = useState('')
+  const [typeDuration, setTypeDuration] = useState('30')
   const [typeErrors, setTypeErrors] = useState<EventTypeFieldErrors>({})
   const [creatingType, setCreatingType] = useState(false)
 
@@ -237,10 +238,15 @@ export function OwnerPage() {
 
     setCreatingType(true)
     try {
-      const created = await createEventType({ name, description })
+      const created = await createEventType({
+        name,
+        description,
+        durationMinutes: Number(typeDuration),
+      })
       setEventTypes((previous) => [...previous, created])
       setTypeName('')
       setTypeDescription('')
+      setTypeDuration('30')
     } catch (err) {
       if (err instanceof ApiValidationError) {
         const serverErrors: EventTypeFieldErrors = {}
@@ -296,9 +302,16 @@ export function OwnerPage() {
                       minRows={2}
                       onChange={(event) => setTypeDescription(event.currentTarget.value)}
                     />
-                    <Text size="sm">
-                      {`${t.typeDurationLabel}: ${SLOT_MINUTES} ${shared.minutesSuffix}`}
-                    </Text>
+                    <Select
+                      label={t.typeDurationLabel}
+                      data={EVENT_TYPE_DURATIONS.map((minutes) => ({
+                        value: String(minutes),
+                        label: `${minutes} ${shared.minutesSuffix}`,
+                      }))}
+                      value={typeDuration}
+                      allowDeselect={false}
+                      onChange={(value) => value && setTypeDuration(value)}
+                    />
                     <Button type="submit" loading={creatingType} style={{ alignSelf: 'flex-start' }}>
                       {t.createEventType}
                     </Button>

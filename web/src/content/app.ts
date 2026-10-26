@@ -90,7 +90,7 @@ export const appCopy: Record<Locale, AppText> = {
     owner: {
       title: 'Ваш календарь',
       eventTypesTitle: 'Типы встреч',
-      eventTypesHint: 'Гость сначала выбирает тип встречи, затем день и свободный 30-минутный слот',
+      eventTypesHint: 'Гость сначала выбирает тип встречи, затем день и свободное время нужной длительности',
       newEventTypeTitle: 'Новый тип встречи',
       typeNameLabel: 'Название',
       typeNameRequired: 'Введите название',
@@ -172,7 +172,7 @@ export const appCopy: Record<Locale, AppText> = {
     owner: {
       title: 'Your calendar',
       eventTypesTitle: 'Event types',
-      eventTypesHint: 'A guest first picks an event type, then a day and a free 30-minute slot',
+      eventTypesHint: 'A guest first picks an event type, then a day and a free slot of its length',
       newEventTypeTitle: 'New event type',
       typeNameLabel: 'Name',
       typeNameRequired: 'Enter a name',

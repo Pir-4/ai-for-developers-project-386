@@ -35,7 +35,14 @@ const ladder: Slot[] = [
   { start: localIso(12, 0), end: localIso(12, 30), status: 'free' },
 ]
 
-function stubApi(options: { bookingStatus?: number; slots?: Slot[]; typeStatus?: number } = {}) {
+function stubApi(
+  options: {
+    bookingStatus?: number
+    slots?: Slot[]
+    typeStatus?: number
+    eventType?: typeof consult
+  } = {},
+) {
   return stubFetch(({ url, method, body }) => {
     if (method === 'POST') {
       const status = options.bookingStatus ?? 201
@@ -57,7 +64,7 @@ function stubApi(options: { bookingStatus?: number; slots?: Slot[]; typeStatus?:
     if (url.endsWith('/api/owner')) return json(200, owner)
     if (url.endsWith('/slots')) return json(200, options.slots ?? ladder)
     if (options.typeStatus === 404) return json(404, { message: 'event type not found' })
-    return json(200, consult)
+    return json(200, options.eventType ?? consult)
   })
 }
 
@@ -92,6 +99,21 @@ describe('гостевая страница: запись на выбранны�
     const busy = screen.getByRole('button', { name: /11:30 - 12:00/ })
     expect(within(busy).getByText(ru.statusBusy)).toBeInTheDocument()
     expect(busy).toBeDisabled()
+  })
+
+  it('часовой тип: слоты длятся час и начинаются каждые полчаса', async () => {
+    stubApi({
+      eventType: { ...consult, durationMinutes: 60 },
+      slots: [
+        { start: localIso(11, 0), end: localIso(12, 0), status: 'free' },
+        { start: localIso(11, 30), end: localIso(12, 30), status: 'free' },
+      ],
+    })
+    renderGuest()
+
+    expect(await screen.findByText(`${ru.durationLabel}: 60 мин`)).toBeInTheDocument()
+    expect(await screen.findByRole('button', { name: /11:00 - 12:00/ })).toBeEnabled()
+    expect(screen.getByRole('button', { name: /11:30 - 12:30/ })).toBeEnabled()
   })
 
   it('занятая ячейка не раскрывает, кто её занял', async () => {

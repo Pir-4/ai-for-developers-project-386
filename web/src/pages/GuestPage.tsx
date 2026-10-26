@@ -56,7 +56,7 @@ function addDays(date: Date, days: number): Date {
 
 /**
  * One event type's booking page (/book/:eventTypeId): the guest has already
- * picked the type in the catalog, now picks a date and a free 30-minute slot,
+ * picked the type in the catalog, now picks a date and a free slot of the type's length,
  * then leaves a name and an email.
  *
  * The slots API answers flat; the binning into calendar days happens here, in

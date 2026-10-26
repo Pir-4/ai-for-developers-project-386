@@ -17,5 +17,5 @@ export const ownerHref = '/owner'
 // The guest's entry point — the owner's event-type catalog; landing CTAs lead here.
 export const guestHref = '/book'
 
-// One event type's booking page: a date, then a free 30-minute slot.
+// One event type's booking page: a date, then a free slot of its length.
 export const eventTypeHref = (eventTypeId: number) => `${guestHref}/${eventTypeId}`

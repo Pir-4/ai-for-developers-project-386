@@ -69,7 +69,7 @@ function stubApi(
             errors: [{ path: 'name', message: 'must NOT have more than 100 characters' }],
           })
         }
-        return json(201, { id: 7, durationMinutes: 30, ...(body as object) })
+        return json(201, { id: 7, ...(body as object) })
       }
       return json(200, options.eventTypes ?? [])
     }
@@ -130,9 +130,9 @@ describe('кабинет владельца: календарь доступно
     await user.click(screen.getByRole('button', { name: ru.addInterval }))
     await user.click(screen.getAllByLabelText(ru.fromLabel)[0]!)
 
-    const options = (await screen.findAllByRole('option', { hidden: true })).map(
-      (option) => option.textContent,
-    )
+    const options = (await screen.findAllByRole('option', { hidden: true }))
+      .map((option) => option.textContent)
+      .filter((text) => /^\d\d:\d\d$/.test(text ?? ''))
     // Оба Select («Начало» и «Конец») держат один и тот же список: 00:00 … 23:30.
     expect(new Set(options).size).toBe(48)
     expect(options).toContain('11:30')
@@ -299,6 +299,12 @@ describe('кабинет владельца: календарь доступно
 })
 
 describe('кабинет владельца: типы встреч', () => {
+  // Подпись Select ссылается и на поле, и на его выпадающий список — берём поле.
+  const durationInput = () =>
+    screen
+      .getAllByLabelText(ru.typeDurationLabel)
+      .find((element) => element.tagName === 'INPUT') as HTMLInputElement
+
   const consult = {
     id: 3,
     name: 'Консультация',
@@ -323,12 +329,43 @@ describe('кабинет владельца: типы встреч', () => {
     ).toBeInTheDocument()
   })
 
-  it('длительность не выбирается — всегда 30 минут', async () => {
+  it('длительность выбирается из 30, 60, 90 и 120 минут, по умолчанию 30', async () => {
     stubApi()
+    const user = userEvent.setup()
     renderOwner()
     await screen.findByText(ru.eventTypesEmpty)
-    expect(screen.getByText(`${ru.typeDurationLabel}: 30 мин`)).toBeInTheDocument()
-    expect(screen.queryByRole('textbox', { name: ru.typeDurationLabel })).not.toBeInTheDocument()
+
+    const duration = durationInput()
+    expect(duration).toHaveValue('30 мин')
+    await user.click(duration)
+    const options = (await screen.findAllByRole('option', { hidden: true }))
+      .map((option) => option.textContent)
+      .filter((text) => text?.endsWith('мин'))
+    expect(options).toEqual(['30 мин', '60 мин', '90 мин', '120 мин'])
+  })
+
+  it('создаёт тип с выбранной длительностью', async () => {
+    const calls = stubApi()
+    const user = userEvent.setup()
+    renderOwner()
+    await screen.findByText(ru.eventTypesEmpty)
+
+    await user.type(screen.getByLabelText(ru.typeNameLabel), 'Консультация')
+    await user.type(screen.getByLabelText(ru.typeDescriptionLabel), 'Разбор задачи')
+    await user.click(durationInput())
+    await user.click(await screen.findByRole('option', { name: '60 мин', hidden: true }))
+    await user.click(screen.getByRole('button', { name: ru.createEventType }))
+
+    const card = (await screen.findByText('Консультация')).closest('article') as HTMLElement
+    expect(within(card).getByText('60 мин')).toBeInTheDocument()
+    const post = calls.find((call) => call.method === 'POST')
+    expect(post?.body).toEqual({
+      name: 'Консультация',
+      description: 'Разбор задачи',
+      durationMinutes: 60,
+    })
+    // Форма сбрасывается к длительности по умолчанию.
+    expect(durationInput()).toHaveValue('30 мин')
   })
 
   it('создаёт тип: название и описание уходят на сервер', async () => {
@@ -347,6 +384,7 @@ describe('кабинет владельца: типы встреч', () => {
     expect(post?.body).toEqual({
       name: 'Знакомство',
       description: 'Первый созвон',
+      durationMinutes: 30,
     })
     expect(screen.queryByText(ru.eventTypesEmpty)).not.toBeInTheDocument()
   })
