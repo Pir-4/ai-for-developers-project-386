@@ -46,11 +46,11 @@ describe("Полный сценарий: владелец → типы встр�
     await app.close();
   });
 
-  it("1. владелец заводит типы встреч — гость видит их каталог, все по 30 минут", async () => {
+  it("1. владелец заводит типы встреч своей длительности — гость видит их каталог", async () => {
     const app = await build();
     for (const body of [
-      { name: "Знакомство", description: "Короткий первый созвон" },
-      { name: "Консультация", description: "Разбор задачи" },
+      { name: "Знакомство", description: "Короткий первый созвон", durationMinutes: 30 },
+      { name: "Консультация", description: "Разбор задачи", durationMinutes: 60 },
     ]) {
       expect((await app.inject({ method: "POST", url: typesUrl, payload: body })).statusCode)
         .toBe(201);
@@ -58,15 +58,19 @@ describe("Полный сценарий: владелец → типы встр�
 
     const catalog = (await app.inject({ method: "GET", url: typesUrl })).json();
     expect(catalog.map((t: { name: string; durationMinutes: number }) => [t.name, t.durationMinutes]))
-      .toEqual([["Знакомство", 30], ["Консультация", 30]]);
+      .toEqual([["Знакомство", 30], ["Консультация", 60]]);
 
     await app.inject({
       method: "PUT",
       url: availabilityUrl(day),
       payload: { intervals: [{ start: iso("11:00"), end: iso("12:30") }] },
     });
-    const ladder = (await app.inject({ method: "GET", url: slotsUrlOf(catalog[1].id) })).json();
-    expect(at(ladder)).toEqual(["11:00", "11:30", "12:00"]);
+    // Начала — по 30-минутной сетке, но часовая встреча должна целиком влезть в интервал.
+    const short = (await app.inject({ method: "GET", url: slotsUrlOf(catalog[0].id) })).json();
+    expect(at(short)).toEqual(["11:00", "11:30", "12:00"]);
+    const long = (await app.inject({ method: "GET", url: slotsUrlOf(catalog[1].id) })).json();
+    expect(at(long)).toEqual(["11:00", "11:30"]);
+    expect(long[0].end).toBe(iso("12:00"));
 
     await app.close();
   });
@@ -135,37 +139,49 @@ describe("Полный сценарий: владелец → типы встр�
     await app.close();
   });
 
-  it("5. бронь одного типа встречи занимает тот же слот у других типов", async () => {
+  it("5. бронь одного типа встречи занимает пересекающиеся слоты у других типов", async () => {
     const app = await build();
     await openWorkday(app);
-    const [first, second] = await Promise.all(
-      ["Знакомство", "Консультация"].map(async (name) =>
+    const [long, short] = await Promise.all(
+      [
+        { name: "Консультация", durationMinutes: 60 },
+        { name: "Знакомство", durationMinutes: 30 },
+      ].map(async (body) =>
         (
           await app.inject({
             method: "POST",
             url: typesUrl,
-            payload: { name, description: "Созвон" },
+            payload: { ...body, description: "Созвон" },
           })
         ).json().id as number,
       ),
     );
 
-    await app.inject({
+    // Часовая бронь 14:30–15:30 закрывает у 30-минутного типа и 14:30, и 15:00.
+    const booked = await app.inject({
       method: "POST",
-      url: bookingsUrlOf(first!),
+      url: bookingsUrlOf(long!),
       payload: { ...guest, start: iso("14:30") },
     });
+    expect(booked.json()).toMatchObject({ end: iso("15:30"), durationMinutes: 60 });
 
-    const slots = (await app.inject({ method: "GET", url: slotsUrlOf(second!) })).json();
+    const slots = (await app.inject({ method: "GET", url: slotsUrlOf(short!) })).json();
     const busy = slots.filter((slot: { status: string }) => slot.status === "busy");
-    expect(at(busy)).toEqual(["14:30"]);
+    expect(at(busy)).toEqual(["14:30", "15:00"]);
 
-    const clash = await app.inject({
-      method: "POST",
-      url: bookingsUrlOf(second!),
-      payload: { ...guest, guestName: "Другой гость", start: iso("14:30") },
-    });
-    expect(clash.statusCode).toBe(409);
+    // А у самого часового типа — все ячейки, задевающие 14:30–15:30.
+    const own = (await app.inject({ method: "GET", url: slotsUrlOf(long!) })).json();
+    const ownBusy = own.filter((slot: { status: string }) => slot.status === "busy");
+    expect(at(ownBusy)).toEqual(["14:00", "14:30", "15:00"]);
+
+    for (const start of ["14:30", "15:00"]) {
+      const clash = await app.inject({
+        method: "POST",
+        url: bookingsUrlOf(short!),
+        payload: { ...guest, guestName: "Другой гость", start: iso(start) },
+      });
+      expect(clash.statusCode).toBe(409);
+    }
 
     await app.close();
   });

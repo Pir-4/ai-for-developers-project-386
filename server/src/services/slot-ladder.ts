@@ -13,9 +13,6 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 /** The 30-minute grid every availability bound and every slot start lands on. */
 export const GRID_STEP_MS = 30 * 60 * 1000;
 
-/** The length of every slot and every booking, in minutes. */
-export const SLOT_MINUTES = 30;
-
 export interface Span {
   /** Inclusive start, epoch ms. */
   start: number;
