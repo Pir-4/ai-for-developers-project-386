@@ -1,5 +1,24 @@
 # Changelog
 
+## [0.4.0](https://github.com/Pir-4/ai-for-developers-project-386/compare/call-booking-v0.3.0...call-booking-v0.4.0) (2026-10-26)
+
+
+### ⚠ BREAKING CHANGES
+
+* **contract:** POST /event-types requires durationMinutes.
+* **web:** guest-first landing, no login, 30-minute grid, 14-day calendars
+* **server:** single predefined owner, 30-minute slots, strict 14-day window
+* **contract:** single predefined owner and fixed 30-minute slots
+
+### Features
+
+* **contract:** single predefined owner and fixed 30-minute slots ([49985b8](https://github.com/Pir-4/ai-for-developers-project-386/commit/49985b888f66be7c4692282afe58150ab08d3468))
+* **contract:** the owner chooses the event-type duration ([652b506](https://github.com/Pir-4/ai-for-developers-project-386/commit/652b50607b892a37dac7383121c88b09ee17c9e9))
+* **server:** single predefined owner, 30-minute slots, strict 14-day window ([4c78786](https://github.com/Pir-4/ai-for-developers-project-386/commit/4c787869d991495e22ad0ba71d3fccdee2fd90a4))
+* **server:** store the event-type duration the owner chooses ([dc5be5a](https://github.com/Pir-4/ai-for-developers-project-386/commit/dc5be5a1394bfd8f389ab813260ffbd7f72ad9d6))
+* **web:** guest-first landing, no login, 30-minute grid, 14-day calendars ([7b1866b](https://github.com/Pir-4/ai-for-developers-project-386/commit/7b1866ba07aa5e7b2e44485ee527abaa4c01d5f8))
+* **web:** restore the duration select in the event-type form ([9fcd4cd](https://github.com/Pir-4/ai-for-developers-project-386/commit/9fcd4cdf53aecb1dc368bf4b964e76b1cda9d191))
+
 ## [0.3.0](https://github.com/Pir-4/ai-for-developers-project-386/compare/call-booking-v0.2.0...call-booking-v0.3.0) (2026-10-21)
 
 
